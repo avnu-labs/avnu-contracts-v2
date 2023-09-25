@@ -1,0 +1,13 @@
+[package]
+name = "avnu"
+version = "1.0.0"
+description = "Best execution on Starknet. No fluff."
+homepage = "https://app.avnu.fi/"
+cairo-version = "2.0.0"
+
+[dependencies]
+starknet = "2.2.0"
+
+[[target.starknet-contract]]
+sierra = true
+casm = true
