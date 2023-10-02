@@ -16,7 +16,7 @@ mod MyswapAdapter {
     use avnu::adapters::ISwapAdapter;
     use avnu::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
     use super::{IMySwapRouterDispatcher, IMySwapRouterDispatcherTrait};
-    use starknet::{get_block_timestamp, ContractAddress, contract_address_const};
+    use starknet::ContractAddress;
     use array::ArrayTrait;
 
     #[storage]

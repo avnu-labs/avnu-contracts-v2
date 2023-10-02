@@ -1,6 +1,8 @@
 #[starknet::contract]
 mod MockEkubo {
-    use avnu::adapters::ekubo_adapter::{IEkuboRouter, Delta, PoolKey, SwapParameters, i129};
+    use avnu::adapters::ekubo_adapter::{
+        IEkuboRouter, PoolPrice, CallPoints, Delta, PoolKey, SwapParameters, i129
+    };
     use starknet::contract_address_const;
     use array::ArrayTrait;
 
@@ -21,6 +23,19 @@ mod MockEkubo {
         }
         fn lock(ref self: ContractState, data: Array<felt252>) -> Array<felt252> {
             ArrayTrait::new()
+        }
+        fn get_pool_price(self: @ContractState, pool_key: PoolKey) -> PoolPrice {
+            PoolPrice {
+                sqrt_ratio: 0,
+                tick: i129 { mag: 0, sign: false },
+                call_points: CallPoints {
+                    after_initialize_pool: false,
+                    before_swap: false,
+                    after_swap: false,
+                    before_update_position: false,
+                    after_update_position: false,
+                }
+            }
         }
         fn withdraw(
             ref self: ContractState,

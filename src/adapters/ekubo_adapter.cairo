@@ -74,6 +74,7 @@ trait IEkuboRouter<TContractState> {
         recipient: ContractAddress,
         amount: u128
     );
+    fn get_pool_price(self: @TContractState, pool_key: PoolKey) -> PoolPrice;
     fn deposit(ref self: TContractState, token_address: ContractAddress) -> u128;
 }
 
@@ -103,7 +104,7 @@ mod EkuboAdapter {
         token_from_amount: u256,
         token_to_address: ContractAddress,
         pool_key: PoolKey,
-        sqrt_ratio_limit: u256,
+        sqrt_ratio_distance: u256,
     }
 
     #[external(v0)]
@@ -135,7 +136,7 @@ mod EkuboAdapter {
                     tick_spacing: (*additional_swap_params[3]).try_into().unwrap(),
                     extension: (*additional_swap_params[4]).try_into().unwrap(),
                 },
-                sqrt_ratio_limit: (*additional_swap_params[5]).into(),
+                sqrt_ratio_distance: (*additional_swap_params[5]).into(),
             };
             let mut data: Array<felt252> = ArrayTrait::new();
             Serde::<SwapAfterLockParameters>::serialize(@callback, ref data);
@@ -160,10 +161,22 @@ mod EkuboAdapter {
 
             // Swap
             assert(params.token_from_amount.high == 0, 'Overflow: Unsupported amount');
+            let pool_price = ekubo.get_pool_price(params.pool_key);
+            let mut sqrt_ratio_limit = if is_token1 {
+                pool_price.sqrt_ratio + params.sqrt_ratio_distance
+            } else {
+                pool_price.sqrt_ratio - params.sqrt_ratio_distance
+            };
+            if (sqrt_ratio_limit < 18446748437148339061) {
+                sqrt_ratio_limit = 18446748437148339061;
+            }
+            if (sqrt_ratio_limit > 6277100250585753475930931601400621808602321654880405518632) {
+                sqrt_ratio_limit = 6277100250585753475930931601400621808602321654880405518632;
+            }
             let swap_params = SwapParameters {
                 amount: i129 { mag: params.token_from_amount.low, sign: false },
                 is_token1,
-                sqrt_ratio_limit: params.sqrt_ratio_limit,
+                sqrt_ratio_limit,
                 skip_ahead: BoundedU32::max()
             };
             let delta = ekubo.swap(params.pool_key, swap_params);
