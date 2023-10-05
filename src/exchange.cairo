@@ -180,8 +180,10 @@ mod Exchange {
 
             // TODO: Maybe use transfer then swap instead of approve then swap, it would remove this transferFrom
             // Transfer tokens to contract
-            IERC20Dispatcher { contract_address: token_from_address }
-                .transferFrom(caller_address, contract_address, token_from_amount);
+            let token_from = IERC20Dispatcher { contract_address: token_from_address };
+            let token_from_balance = token_from.balanceOf(caller_address);
+            assert(token_from_balance >= token_from_amount, 'Token from balance is too low');
+            token_from.transferFrom(caller_address, contract_address, token_from_amount);
 
             // Collect fees
             self
