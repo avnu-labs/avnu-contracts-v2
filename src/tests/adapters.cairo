@@ -1,3 +1,4 @@
+mod ekubo_adapter_test;
 mod jediswap_adapter_test;
 mod myswap_adapter_test;
 mod sithswap_adapter_test;

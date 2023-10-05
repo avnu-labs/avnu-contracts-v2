@@ -64,6 +64,31 @@ struct CallPoints {
     after_update_position: bool,
 }
 
+fn compute_sqrt_ratio_limit(sqrt_ratio: u256, distance: u256, is_token1: bool) -> u256 {
+    let min = 18446748437148339061;
+    let max = 6277100250585753475930931601400621808602321654880405518632;
+    let mut sqrt_ratio_limit = if is_token1 {
+        if (distance > max) {
+            max
+        } else {
+            sqrt_ratio + distance
+        }
+    } else {
+        if (distance > sqrt_ratio) {
+            min
+        } else {
+            sqrt_ratio - distance
+        }
+    };
+    if (sqrt_ratio_limit < min) {
+        sqrt_ratio_limit = min;
+    }
+    if (sqrt_ratio_limit > max) {
+        sqrt_ratio_limit = max;
+    }
+    sqrt_ratio_limit
+}
+
 #[starknet::interface]
 trait IEkuboRouter<TContractState> {
     fn lock(ref self: TContractState, data: Array<felt252>) -> Array<felt252>;
@@ -91,7 +116,10 @@ mod EkuboAdapter {
     use traits::Into;
     use traits::TryInto;
     use starknet::ContractAddress;
-    use super::{IEkuboRouterDispatcher, IEkuboRouterDispatcherTrait, PoolKey, SwapParameters, i129};
+    use super::{
+        IEkuboRouterDispatcher, IEkuboRouterDispatcherTrait, PoolKey, SwapParameters, i129,
+        compute_sqrt_ratio_limit
+    };
 
     #[storage]
     struct Storage {}
@@ -162,17 +190,9 @@ mod EkuboAdapter {
             // Swap
             assert(params.token_from_amount.high == 0, 'Overflow: Unsupported amount');
             let pool_price = ekubo.get_pool_price(params.pool_key);
-            let mut sqrt_ratio_limit = if is_token1 {
-                pool_price.sqrt_ratio + params.sqrt_ratio_distance
-            } else {
-                pool_price.sqrt_ratio - params.sqrt_ratio_distance
-            };
-            if (sqrt_ratio_limit < 18446748437148339061) {
-                sqrt_ratio_limit = 18446748437148339061;
-            }
-            if (sqrt_ratio_limit > 6277100250585753475930931601400621808602321654880405518632) {
-                sqrt_ratio_limit = 6277100250585753475930931601400621808602321654880405518632;
-            }
+            let sqrt_ratio_limit = compute_sqrt_ratio_limit(
+                pool_price.sqrt_ratio, params.sqrt_ratio_distance, is_token1
+            );
             let swap_params = SwapParameters {
                 amount: i129 { mag: params.token_from_amount.low, sign: false },
                 is_token1,
