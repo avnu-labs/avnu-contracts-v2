@@ -197,7 +197,7 @@ mod EkuboAdapter {
                 amount: i129 { mag: params.token_from_amount.low, sign: false },
                 is_token1,
                 sqrt_ratio_limit,
-                skip_ahead: BoundedU32::max()
+                skip_ahead: 100
             };
             let delta = ekubo.swap(params.pool_key, swap_params);
 
