@@ -64,31 +64,6 @@ struct CallPoints {
     after_update_position: bool,
 }
 
-fn compute_sqrt_ratio_limit(sqrt_ratio: u256, distance: u256, is_token1: bool) -> u256 {
-    let min = 18446748437148339061;
-    let max = 6277100250585753475930931601400621808602321654880405518632;
-    let mut sqrt_ratio_limit = if is_token1 {
-        if (distance > max) {
-            max
-        } else {
-            sqrt_ratio + distance
-        }
-    } else {
-        if (distance > sqrt_ratio) {
-            min
-        } else {
-            sqrt_ratio - distance
-        }
-    };
-    if (sqrt_ratio_limit < min) {
-        sqrt_ratio_limit = min;
-    }
-    if (sqrt_ratio_limit > max) {
-        sqrt_ratio_limit = max;
-    }
-    sqrt_ratio_limit
-}
-
 #[starknet::interface]
 trait IEkuboRouter<TContractState> {
     fn lock(ref self: TContractState, data: Array<felt252>) -> Array<felt252>;
@@ -109,6 +84,7 @@ mod EkuboAdapter {
     use avnu::adapters::ISwapAdapter;
     use avnu::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
     use avnu::interfaces::locker::ISwapAfterLock;
+    use avnu::math::sqrt_ratio::compute_sqrt_ratio_limit;
     use integer::{u256_overflow_mul, BoundedU32};
     use option::OptionTrait;
     use result::ResultTrait;
@@ -116,10 +92,10 @@ mod EkuboAdapter {
     use traits::Into;
     use traits::TryInto;
     use starknet::ContractAddress;
-    use super::{
-        IEkuboRouterDispatcher, IEkuboRouterDispatcherTrait, PoolKey, SwapParameters, i129,
-        compute_sqrt_ratio_limit
-    };
+    use super::{IEkuboRouterDispatcher, IEkuboRouterDispatcherTrait, PoolKey, SwapParameters, i129};
+
+    const MIN_SQRT_RATIO: u256 = 18446748437148339061;
+    const MAX_SQRT_RATIO: u256 = 6277100250585753475930931601400621808602321654880405518632;
 
     #[storage]
     struct Storage {}
@@ -191,7 +167,11 @@ mod EkuboAdapter {
             assert(params.token_from_amount.high == 0, 'Overflow: Unsupported amount');
             let pool_price = ekubo.get_pool_price(params.pool_key);
             let sqrt_ratio_limit = compute_sqrt_ratio_limit(
-                pool_price.sqrt_ratio, params.sqrt_ratio_distance, is_token1
+                pool_price.sqrt_ratio,
+                params.sqrt_ratio_distance,
+                is_token1,
+                MIN_SQRT_RATIO,
+                MAX_SQRT_RATIO
             );
             let swap_params = SwapParameters {
                 amount: i129 { mag: params.token_from_amount.low, sign: false },

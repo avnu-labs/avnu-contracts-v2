@@ -1,5 +1,7 @@
 mod ComputeSqrtRatioLimit {
-    use avnu::adapters::ekubo_adapter::compute_sqrt_ratio_limit;
+    use avnu::math::sqrt_ratio::compute_sqrt_ratio_limit;
+    const MIN: u256 = 18446748437148339061;
+    const MAX: u256 = 6277100250585753475930931601400621808602321654880405518632;
 
     #[test]
     fn should_return_min_when_u256_sub_Overflow() {
@@ -9,7 +11,7 @@ mod ComputeSqrtRatioLimit {
         let is_token1 = false;
 
         // When
-        let result = compute_sqrt_ratio_limit(sqrt_ratio, distance, is_token1);
+        let result = compute_sqrt_ratio_limit(sqrt_ratio, distance, is_token1, MIN, MAX);
 
         // Then
         assert(result == 18446748437148339061, 'invalid sqrt_ratio');
@@ -25,7 +27,7 @@ mod ComputeSqrtRatioLimit {
         let is_token1 = true;
 
         // When
-        let result = compute_sqrt_ratio_limit(sqrt_ratio, distance, is_token1);
+        let result = compute_sqrt_ratio_limit(sqrt_ratio, distance, is_token1, MIN, MAX);
 
         // Then
         assert(
@@ -42,7 +44,7 @@ mod ComputeSqrtRatioLimit {
         let is_token1 = false;
 
         // When
-        let result = compute_sqrt_ratio_limit(sqrt_ratio, distance, is_token1);
+        let result = compute_sqrt_ratio_limit(sqrt_ratio, distance, is_token1, MIN, MAX);
 
         // Then
         assert(result == 28446748437148339032, 'invalid sqrt_ratio');
@@ -56,7 +58,7 @@ mod ComputeSqrtRatioLimit {
         let is_token1 = true;
 
         // When
-        let result = compute_sqrt_ratio_limit(sqrt_ratio, distance, is_token1);
+        let result = compute_sqrt_ratio_limit(sqrt_ratio, distance, is_token1, MIN, MAX);
 
         // Then
         assert(result == 28446748437148339184, 'invalid sqrt_ratio');
