@@ -67,9 +67,6 @@ fn deploy_exchange() -> IExchangeDispatcher {
     let adapter_class_hash = declare_mock_swap_adapter();
     dispatcher.set_adapter_class_hash(contract_address_const::<0x12>(), adapter_class_hash);
     dispatcher.set_adapter_class_hash(contract_address_const::<0x11>(), adapter_class_hash);
-    let fee_collector = deploy_mock_fee_collector(0x0, 0x0, 0x0).contract_address;
-    set_contract_address(owner);
-    dispatcher.set_fee_collector_address(fee_collector);
     pop_log_raw(address);
     assert(pop_log_raw(address).is_none(), 'no more events');
     dispatcher

@@ -12,10 +12,14 @@ trait IExchange<TContractState> {
     fn set_adapter_class_hash(
         ref self: TContractState, exchange_address: ContractAddress, adapter_class_hash: ClassHash
     ) -> bool;
-    fn get_fee_collector_address(self: @TContractState) -> ContractAddress;
-    fn set_fee_collector_address(
-        ref self: TContractState, new_fee_collector_address: ContractAddress
-    ) -> bool;
+    fn get_fees_active(self: @TContractState) -> bool;
+    fn set_fees_active(ref self: TContractState, active: bool) -> bool;
+    fn get_fees_recipient(self: @TContractState) -> ContractAddress;
+    fn set_fees_recipient(ref self: TContractState, recipient: ContractAddress) -> bool;
+    fn get_fees_bps_0(self: @TContractState) -> u128;
+    fn set_fees_bps_0(ref self: TContractState, bps: u128) -> bool;
+    fn get_fees_bps_1(self: @TContractState) -> u128;
+    fn set_fees_bps_1(ref self: TContractState, bps: u128) -> bool;
     fn multi_route_swap(
         ref self: TContractState,
         token_from_address: ContractAddress,
@@ -54,7 +58,10 @@ mod Exchange {
     struct Storage {
         Ownable_owner: ContractAddress,
         AdapterClassHash: LegacyMap<ContractAddress, ClassHash>,
-        FeeCollectorAddress: ContractAddress,
+        fees_active: bool,
+        fees_bps_0: u128,
+        fees_bps_1: u128,
+        fees_recipient: ContractAddress,
     }
 
     #[event]
@@ -105,11 +112,11 @@ mod Exchange {
 
     #[constructor]
     fn constructor(
-        ref self: ContractState, owner: ContractAddress, fee_collector_address: ContractAddress
+        ref self: ContractState, owner: ContractAddress, fee_recipient: ContractAddress
     ) {
         // Set owner & fee collector address
         self._transfer_ownership(owner);
-        self.FeeCollectorAddress.write(fee_collector_address)
+        self.fees_recipient.write(fee_recipient)
     }
 
     #[external(v0)]
@@ -147,15 +154,43 @@ mod Exchange {
             true
         }
 
-        fn get_fee_collector_address(self: @ContractState) -> ContractAddress {
-            self.FeeCollectorAddress.read()
+        fn get_fees_active(self: @ContractState) -> bool {
+            self.fees_active.read()
         }
 
-        fn set_fee_collector_address(
-            ref self: ContractState, new_fee_collector_address: ContractAddress
-        ) -> bool {
+        fn set_fees_active(ref self: ContractState, active: bool) -> bool {
             self.assert_only_owner();
-            self.FeeCollectorAddress.write(new_fee_collector_address);
+            self.fees_active.write(active);
+            true
+        }
+
+        fn get_fees_recipient(self: @ContractState) -> ContractAddress {
+            self.fees_recipient.read()
+        }
+
+        fn set_fees_recipient(ref self: ContractState, recipient: ContractAddress) -> bool {
+            self.assert_only_owner();
+            self.fees_recipient.write(recipient);
+            true
+        }
+
+        fn get_fees_bps_0(self: @ContractState) -> u128 {
+            self.fees_bps_0.read()
+        }
+
+        fn set_fees_bps_0(ref self: ContractState, bps: u128) -> bool {
+            self.assert_only_owner();
+            self.fees_bps_0.write(bps);
+            true
+        }
+
+        fn get_fees_bps_1(self: @ContractState) -> u128 {
+            self.fees_bps_1.read()
+        }
+
+        fn set_fees_bps_1(ref self: ContractState, bps: u128) -> bool {
+            self.assert_only_owner();
+            self.fees_bps_1.write(bps);
             true
         }
 
@@ -173,6 +208,7 @@ mod Exchange {
         ) -> bool {
             let caller_address = get_caller_address();
             let contract_address = get_contract_address();
+            let route_len = routes.len();
 
             // In the future, the beneficiary may not be the caller
             // Check if beneficiary == caller_address
@@ -185,23 +221,24 @@ mod Exchange {
             assert(token_from_balance >= token_from_amount, 'Token from balance is too low');
             token_from.transferFrom(caller_address, contract_address, token_from_amount);
 
-            // Collect fees
-            self
-                .collect_fees(
-                    token_from_amount,
-                    token_from_address,
-                    integrator_fee_amount_bps,
-                    integrator_fee_recipient
-                );
-
             // Swap
             self.apply_routes(routes, contract_address);
 
-            // Retrieve amount of token to received and transfer tokens
+            // Collect fees
             let token_to = IERC20Dispatcher { contract_address: token_to_address };
             let received_token_to = token_to.balanceOf(contract_address);
-            assert(token_to_min_amount <= received_token_to, 'Insufficient tokens received');
-            token_to.transfer(beneficiary, received_token_to);
+            let token_to_final_amount = self
+                .collect_fees(
+                    token_to,
+                    received_token_to,
+                    integrator_fee_amount_bps,
+                    integrator_fee_recipient,
+                    route_len
+                );
+
+            // Check amount of token to and transfer tokens
+            assert(token_to_min_amount <= token_to_final_amount, 'Insufficient tokens received');
+            token_to.transfer(beneficiary, token_to_final_amount);
 
             // Emit event
             self
@@ -211,7 +248,7 @@ mod Exchange {
                         sell_address: token_from_address,
                         sell_amount: token_from_amount,
                         buy_address: token_to_address,
-                        buy_amount: received_token_to,
+                        buy_amount: token_to_final_amount,
                         beneficiary: beneficiary
                     }
                 );
@@ -275,28 +312,27 @@ mod Exchange {
 
         fn collect_fees(
             ref self: ContractState,
+            token: IERC20Dispatcher,
             amount: u256,
-            token_address: ContractAddress,
             integrator_fee_amount_bps: u128,
             integrator_fee_recipient: ContractAddress,
+            route_len: usize
         ) -> u256 {
             // Collect integrator's fees
             let integrator_fees_collected = self
                 .collect_fee_bps(
-                    amount, token_address, integrator_fee_amount_bps, integrator_fee_recipient, true
+                    token, amount, integrator_fee_amount_bps, integrator_fee_recipient, true
                 );
 
             // Collect AVNU's fees
-            let fee_collector_address = self.get_fee_collector_address();
-            let fee_info = IFeeCollectorDispatcher { contract_address: fee_collector_address }
-                .feeInfo();
+            let bps = if route_len > 1 {
+                self.get_fees_bps_1()
+            } else {
+                self.get_fees_bps_0()
+            };
             let avnu_fees_collected = self
                 .collect_fee_bps(
-                    amount,
-                    token_address,
-                    fee_info.fee_amount,
-                    fee_collector_address,
-                    fee_info.is_active
+                    token, amount, bps, self.get_fees_recipient(), self.get_fees_active()
                 );
 
             // Compute and return amount minus fees
@@ -305,8 +341,8 @@ mod Exchange {
 
         fn collect_fee_bps(
             ref self: ContractState,
+            token: IERC20Dispatcher,
             amount: u256,
-            token_address: ContractAddress,
             fee_amount_bps: u128,
             fee_recipient: ContractAddress,
             is_active: bool
@@ -321,8 +357,7 @@ mod Exchange {
                 assert(overflows == false, 'Overflow: Invalid fee');
 
                 // Collect fees from contract
-                IERC20Dispatcher { contract_address: token_address }
-                    .transfer(fee_recipient, fee_amount);
+                token.transfer(fee_recipient, fee_amount);
 
                 fee_amount
             } else {
