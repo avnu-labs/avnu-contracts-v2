@@ -1,6 +1,7 @@
 mod ekubo_adapter;
 mod jediswap_adapter;
 mod myswap_adapter;
+mod myswapv2_adapter;
 mod sithswap_adapter;
 mod tenkswap_adapter;
 
