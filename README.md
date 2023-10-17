@@ -32,10 +32,14 @@ trait IExchange<TContractState> {
     fn set_adapter_class_hash(
         ref self: TContractState, exchange_address: ContractAddress, adapter_class_hash: ClassHash
     ) -> bool;
-    fn get_fee_collector_address(self: @TContractState) -> ContractAddress;
-    fn set_fee_collector_address(
-        ref self: TContractState, new_fee_collector_address: ContractAddress
-    ) -> bool;
+    fn get_fees_active(self: @TContractState) -> bool;
+    fn set_fees_active(ref self: TContractState, active: bool) -> bool;
+    fn get_fees_recipient(self: @TContractState) -> ContractAddress;
+    fn set_fees_recipient(ref self: TContractState, recipient: ContractAddress) -> bool;
+    fn get_fees_bps_0(self: @TContractState) -> u128;
+    fn set_fees_bps_0(ref self: TContractState, bps: u128) -> bool;
+    fn get_fees_bps_1(self: @TContractState) -> u128;
+    fn set_fees_bps_1(ref self: TContractState, bps: u128) -> bool;
     fn multi_route_swap(
         ref self: TContractState,
         token_from_address: ContractAddress,
