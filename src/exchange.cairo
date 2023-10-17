@@ -210,20 +210,85 @@ mod Exchange {
             let contract_address = get_contract_address();
             let route_len = routes.len();
 
+            // Execute all the pre-swap actions (some checks, retrieve token from...)
+            self
+                .before_swap(
+                    contract_address,
+                    caller_address,
+                    token_from_address,
+                    token_from_amount,
+                    beneficiary
+                );
+
+            // Swap
+            self.apply_routes(routes, contract_address);
+
+            // Execute all the post-swap actions (verify min amount, collect fees, transfer tokens, emit event...)
+            self
+                .after_swap(
+                    contract_address,
+                    caller_address,
+                    token_from_address,
+                    token_from_amount,
+                    token_to_address,
+                    token_to_min_amount,
+                    beneficiary,
+                    integrator_fee_amount_bps,
+                    integrator_fee_recipient,
+                    route_len
+                );
+
+            true
+        }
+    }
+
+    #[generate_trait]
+    impl Internal of InternalTrait {
+        fn assert_only_owner(self: @ContractState) {
+            let owner = self.get_owner();
+            let caller = get_caller_address();
+            assert(!caller.is_zero(), 'Caller is the zero address');
+            assert(caller == owner, 'Caller is not the owner');
+        }
+
+        fn _transfer_ownership(ref self: ContractState, new_owner: ContractAddress) {
+            let previous_owner = self.get_owner();
+            self.Ownable_owner.write(new_owner);
+            self.emit(OwnershipTransferred { previous_owner, new_owner });
+        }
+
+        fn before_swap(
+            ref self: ContractState,
+            contract_address: ContractAddress,
+            caller_address: ContractAddress,
+            token_from_address: ContractAddress,
+            token_from_amount: u256,
+            beneficiary: ContractAddress,
+        ) {
             // In the future, the beneficiary may not be the caller
             // Check if beneficiary == caller_address
             assert(beneficiary == caller_address, 'Beneficiary is not the caller');
 
-            // TODO: Maybe use transfer then swap instead of approve then swap, it would remove this transferFrom
             // Transfer tokens to contract
             let token_from = IERC20Dispatcher { contract_address: token_from_address };
             let token_from_balance = token_from.balanceOf(caller_address);
             assert(token_from_balance >= token_from_amount, 'Token from balance is too low');
             token_from.transferFrom(caller_address, contract_address, token_from_amount);
+        }
 
-            // Swap
-            self.apply_routes(routes, contract_address);
-
+        fn after_swap(
+            ref self: ContractState,
+            contract_address: ContractAddress,
+            caller_address: ContractAddress,
+            token_from_address: ContractAddress,
+            token_from_amount: u256,
+            token_to_address: ContractAddress,
+            token_to_min_amount: u256,
+            beneficiary: ContractAddress,
+            integrator_fee_amount_bps: u128,
+            integrator_fee_recipient: ContractAddress,
+            route_len: usize
+        ) {
             // Collect fees
             let token_to = IERC20Dispatcher { contract_address: token_to_address };
             let received_token_to = token_to.balanceOf(contract_address);
@@ -252,24 +317,6 @@ mod Exchange {
                         beneficiary: beneficiary
                     }
                 );
-
-            true
-        }
-    }
-
-    #[generate_trait]
-    impl Internal of InternalTrait {
-        fn assert_only_owner(self: @ContractState) {
-            let owner = self.get_owner();
-            let caller = get_caller_address();
-            assert(!caller.is_zero(), 'Caller is the zero address');
-            assert(caller == owner, 'Caller is not the owner');
-        }
-
-        fn _transfer_ownership(ref self: ContractState, new_owner: ContractAddress) {
-            let previous_owner = self.get_owner();
-            self.Ownable_owner.write(new_owner);
-            self.emit(OwnershipTransferred { previous_owner, new_owner });
         }
 
         fn apply_routes(
