@@ -61,7 +61,6 @@ mod MyswapV2Adapter {
             let sqrt_ratio_distance: u256 = (*additional_swap_params[1]).into();
             let is_token_0 = myswapv2.token0(pool_key) == token_from_address;
             let sqrt_price = myswapv2.current_sqrt_price(pool_key);
-            let exact_input = true;
             let sqrt_ratio_limit = compute_sqrt_ratio_limit(
                 sqrt_price, sqrt_ratio_distance, !is_token_0, MIN_SQRT_RATIO, MAX_SQRT_RATIO
             );
