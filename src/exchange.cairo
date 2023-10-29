@@ -50,7 +50,6 @@ mod Exchange {
     use avnu::interfaces::locker::{
         ILocker, ISwapAfterLockLibraryDispatcher, ISwapAfterLockDispatcherTrait
     };
-    use avnu::interfaces::fee_collector::{IFeeCollectorDispatcher, IFeeCollectorDispatcherTrait};
     use avnu::math::muldiv::muldiv;
     use avnu::models::Route;
 

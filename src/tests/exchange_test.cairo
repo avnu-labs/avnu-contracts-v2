@@ -1,4 +1,4 @@
-use avnu::tests::helper::{deploy_exchange, deploy_mock_token, deploy_mock_fee_collector,};
+use avnu::tests::helper::{deploy_exchange, deploy_mock_token};
 use avnu::exchange::{Exchange, IExchangeDispatcher, IExchangeDispatcherTrait};
 use avnu::exchange::Exchange::{Swap, Event, OwnershipTransferred};
 use avnu::models::Route;
@@ -383,8 +383,7 @@ mod MultiRouteSwap {
     use super::{
         Exchange, IExchangeDispatcher, ContractAddress, deploy_exchange, deploy_mock_token,
         IExchangeDispatcherTrait, ArrayTrait, contract_address_const, Route, set_contract_address,
-        pop_log_raw, Swap, OptionTrait, Event, OwnershipTransferred, deploy_mock_fee_collector,
-        contract_address_to_felt252
+        pop_log_raw, Swap, OptionTrait, Event, OwnershipTransferred, contract_address_to_felt252
     };
 
     struct SwapScenario {
@@ -507,7 +506,6 @@ mod MultiRouteSwap {
         exchange.set_fees_active(true);
         exchange.set_fees_bps_0(200);
         exchange.set_fees_bps_1(400);
-        let fee_collector = deploy_mock_fee_collector(0x1, 0x1, 200).contract_address;
         let token_from_address = deploy_mock_token(100).contract_address;
         let token_to_address = deploy_mock_token(100).contract_address;
         let beneficiary = contract_address_const::<0x12345>();
@@ -526,7 +524,6 @@ mod MultiRouteSwap {
                 }
             );
         set_contract_address(exchange.get_owner());
-        exchange.set_fees_recipient(fee_collector);
         set_contract_address(beneficiary);
 
         // When
@@ -568,7 +565,7 @@ mod MultiRouteSwap {
         // Verify avnu's fees
         let (mut keys, mut data) = pop_log_raw(token_to_address).unwrap();
         let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
-        let expected_event = Transfer { to: fee_collector, amount: 2_u256 };
+        let expected_event = Transfer { to: fees_recipient, amount: 2_u256 };
         assert(event == expected_event, 'invalid token transfer');
         assert(pop_log_raw(token_from_address).is_none(), 'no more events');
     }
@@ -584,7 +581,6 @@ mod MultiRouteSwap {
         exchange.set_fees_active(true);
         exchange.set_fees_bps_0(200);
         exchange.set_fees_bps_1(400);
-        let fee_collector = deploy_mock_fee_collector(0x1, 0x1, 200).contract_address;
         let token_from_address = deploy_mock_token(100).contract_address;
         let token_to_address = deploy_mock_token(100).contract_address;
         let beneficiary = contract_address_const::<0x12345>();
@@ -613,7 +609,6 @@ mod MultiRouteSwap {
                 }
             );
         set_contract_address(exchange.get_owner());
-        exchange.set_fees_recipient(fee_collector);
         set_contract_address(beneficiary);
 
         // When
@@ -658,7 +653,7 @@ mod MultiRouteSwap {
         // Verify avnu's fees
         let (mut keys, mut data) = pop_log_raw(token_to_address).unwrap();
         let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
-        let expected_event = Transfer { to: fee_collector, amount: 4_u256 };
+        let expected_event = Transfer { to: fees_recipient, amount: 4_u256 };
         assert(event == expected_event, 'invalid token transfer');
         assert(pop_log_raw(token_from_address).is_none(), 'no more events');
     }

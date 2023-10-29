@@ -9,7 +9,6 @@ use avnu::tests::mocks::mock_amm::{
     MockEkubo, MockTenkSwap, MockSithSwap, MockMySwap, MockJediSwap, MockSwapAdapter
 };
 use avnu::tests::mocks::mock_erc20::MockERC20;
-use avnu::tests::mocks::mock_fee_collector::MockFeeCollector;
 use avnu::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
 use avnu::adapters::jediswap_adapter::{
     JediswapAdapter, IJediSwapRouterDispatcher, IJediSwapRouterDispatcherTrait
@@ -39,20 +38,6 @@ fn deploy_mock_token(balance: felt252) -> IERC20Dispatcher {
     )
         .expect('token deploy failed');
     return IERC20Dispatcher { contract_address: token_address };
-}
-
-fn deploy_mock_fee_collector(
-    is_active: felt252, fee_type: felt252, fee_amount: felt252
-) -> IERC20Dispatcher {
-    let mut constructor_args: Array<felt252> = ArrayTrait::new();
-    constructor_args.append(is_active);
-    constructor_args.append(fee_type);
-    constructor_args.append(fee_amount);
-    let (contract_address, _) = deploy_syscall(
-        MockFeeCollector::TEST_CLASS_HASH.try_into().unwrap(), 0, constructor_args.span(), true
-    )
-        .expect('fee collector deploy failed');
-    return IERC20Dispatcher { contract_address };
 }
 
 fn deploy_exchange() -> IExchangeDispatcher {
