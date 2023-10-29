@@ -53,6 +53,9 @@ mod Exchange {
     use avnu::math::muldiv::muldiv;
     use avnu::models::Route;
 
+    const MAX_AVNU_FEES_BPS: u128 = 100;
+    const MAX_INTEGRATOR_FEES_BPS: u128 = 500;
+
     #[storage]
     struct Storage {
         Ownable_owner: ContractAddress,
@@ -179,6 +182,7 @@ mod Exchange {
 
         fn set_fees_bps_0(ref self: ContractState, bps: u128) -> bool {
             self.assert_only_owner();
+            assert(bps <= MAX_AVNU_FEES_BPS, 'Fees are too high');
             self.fees_bps_0.write(bps);
             true
         }
@@ -189,6 +193,7 @@ mod Exchange {
 
         fn set_fees_bps_1(ref self: ContractState, bps: u128) -> bool {
             self.assert_only_owner();
+            assert(bps <= MAX_AVNU_FEES_BPS, 'Fees are too high');
             self.fees_bps_1.write(bps);
             true
         }
@@ -365,6 +370,9 @@ mod Exchange {
             route_len: usize
         ) -> u256 {
             // Collect integrator's fees
+            assert(
+                integrator_fee_amount_bps <= MAX_INTEGRATOR_FEES_BPS, 'Integrator fees are too high'
+            );
             let integrator_fees_collected = self
                 .collect_fee_bps(
                     token, amount, integrator_fee_amount_bps, integrator_fee_recipient, true
