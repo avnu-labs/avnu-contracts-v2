@@ -340,6 +340,8 @@ mod Exchange {
 
             // Calculating tokens to be passed to the exchange
             // percentage should be 2 for 2%
+            assert(route.percent > 0, 'Invalid route percent');
+            assert(route.percent <= 100, 'Invalid route percent');
             let token_from_balance = IERC20Dispatcher { contract_address: route.token_from }
                 .balanceOf(contract_address);
             let (token_from_amount, overflows) = muldiv(
