@@ -481,6 +481,46 @@ mod MultiRouteSwap {
 
     #[test]
     #[available_gas(20000000)]
+    #[should_panic(expected: ('Token from amount is 0', 'ENTRYPOINT_FAILED'))]
+    fn should_throw_error_when_token_from_amount_is_0() {
+        // Given
+        let exchange = deploy_exchange();
+        let token_from_address = deploy_mock_token(10).contract_address;
+        let token_to_address = deploy_mock_token(10).contract_address;
+        let beneficiary = contract_address_const::<0x12345>();
+        let token_from_amount = u256 { low: 0, high: 0 };
+        let token_to_min_amount = u256 { low: 9, high: 0 };
+        let token_to_amount = u256 { low: 9, high: 0 };
+        let mut routes = ArrayTrait::new();
+        routes
+            .append(
+                Route {
+                    token_from: token_from_address,
+                    token_to: token_to_address,
+                    exchange_address: contract_address_const::<0x12>(),
+                    percent: 100,
+                    additional_swap_params: ArrayTrait::new()
+                }
+            );
+        set_contract_address(beneficiary);
+
+        // When & Then
+        exchange
+            .multi_route_swap(
+                token_from_address,
+                token_from_amount,
+                token_to_address,
+                token_to_amount,
+                token_to_min_amount,
+                beneficiary,
+                0,
+                contract_address_const::<0x0>(),
+                routes
+            );
+    }
+
+    #[test]
+    #[available_gas(20000000)]
     #[should_panic(expected: ('Token from balance is too low', 'ENTRYPOINT_FAILED'))]
     fn should_throw_error_when_caller_balance_is_too_low() {
         // Given

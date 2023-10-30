@@ -279,6 +279,7 @@ mod Exchange {
             assert(beneficiary == caller_address, 'Beneficiary is not the caller');
 
             // Transfer tokens to contract
+            assert(token_from_amount > 0, 'Token from amount is 0');
             let token_from = IERC20Dispatcher { contract_address: token_from_address };
             let token_from_balance = token_from.balanceOf(caller_address);
             assert(token_from_balance >= token_from_amount, 'Token from balance is too low');
