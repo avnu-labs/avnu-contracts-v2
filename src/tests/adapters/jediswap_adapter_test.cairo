@@ -1,6 +1,6 @@
 mod Swap {
     use array::{Array, ArrayTrait};
-    use starknet::contract_address_const;
+    use starknet::{contract_address_const, get_caller_address};
     use avnu::tests::helper::{deploy_mock_jediswap, deploy_mock_token, deploy_jediswap_adapter};
     use avnu::adapters::ISwapAdapterDispatcherTrait;
 
@@ -10,8 +10,8 @@ mod Swap {
         // Given
         let adapter = deploy_jediswap_adapter();
         let exchange = deploy_mock_jediswap();
-        let token_from = deploy_mock_token(1);
-        let token_to = deploy_mock_token(0);
+        let token_from = deploy_mock_token(get_caller_address(), 1);
+        let token_to = deploy_mock_token(get_caller_address(), 0);
         let additional_params = ArrayTrait::new();
         let to = contract_address_const::<0x4>();
 
@@ -37,8 +37,8 @@ mod Swap {
         // Given
         let adapter = deploy_jediswap_adapter();
         let exchange = deploy_mock_jediswap();
-        let token_from = deploy_mock_token(1);
-        let token_to = deploy_mock_token(0);
+        let token_from = deploy_mock_token(get_caller_address(), 1);
+        let token_to = deploy_mock_token(get_caller_address(), 0);
         let mut additional_params = ArrayTrait::new();
         additional_params.append(0x1);
         let to = contract_address_const::<0x4>();

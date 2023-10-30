@@ -213,6 +213,7 @@ mod Exchange {
             let caller_address = get_caller_address();
             let contract_address = get_contract_address();
             let route_len = routes.len();
+            let routes_span = routes.span();
 
             // Execute all the pre-swap actions (some checks, retrieve token from...)
             self
@@ -247,6 +248,11 @@ mod Exchange {
                     route_len
                 );
 
+            // Dict of bools are supported yet
+            let mut checked_tokens: Felt252Dict<u64> = Default::default();
+            // Token to has already been checked
+            checked_tokens.insert(token_to_address.into(), 1);
+            self.assert_no_remaining_tokens(contract_address, routes_span, checked_tokens);
             true
         }
     }
@@ -327,6 +333,42 @@ mod Exchange {
                         beneficiary: beneficiary
                     }
                 );
+        }
+
+        fn assert_no_remaining_tokens(
+            ref self: ContractState,
+            contract_address: ContractAddress,
+            mut routes: Span<Route>,
+            mut checked_tokens: Felt252Dict<u64>
+        ) {
+            if routes.len() == 0 {
+                return;
+            }
+
+            // Retrieve current route
+            let route: @Route = routes.pop_front().unwrap();
+
+            // Transfer residual tokens
+            self.assert_no_remaining_token(contract_address, *route.token_from, ref checked_tokens);
+            self.assert_no_remaining_token(contract_address, *route.token_to, ref checked_tokens);
+
+            self.assert_no_remaining_tokens(contract_address, routes, checked_tokens);
+        }
+
+        fn assert_no_remaining_token(
+            ref self: ContractState,
+            contract_address: ContractAddress,
+            token_address: ContractAddress,
+            ref checked_tokens: Felt252Dict<u64>
+        ) {
+            // Only do the check when token balance has not already been checked
+            if checked_tokens.get(token_address.into()) == 0 {
+                // Check balance and transfer tokens if necessary
+                let token = IERC20Dispatcher { contract_address: token_address };
+                let token_balance = token.balanceOf(contract_address);
+                assert(token_balance == 0, 'Residual tokens');
+                checked_tokens.insert(token_address.into(), 1);
+            }
         }
 
         fn apply_routes(
