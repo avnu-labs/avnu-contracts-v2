@@ -225,6 +225,11 @@ mod Exchange {
                 );
 
             // Swap
+            assert(route_len > 0, 'Routes is empty');
+            let first_route: @Route = routes[0];
+            let last_route: @Route = routes[route_len - 1];
+            assert(*first_route.token_from == token_from_address, 'Invalid token from');
+            assert(*last_route.token_to == token_to_address, 'Invalid token to');
             self.apply_routes(routes, contract_address);
 
             // Execute all the post-swap actions (verify min amount, collect fees, transfer tokens, emit event...)

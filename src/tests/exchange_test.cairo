@@ -838,6 +838,175 @@ mod MultiRouteSwap {
     }
 
     #[test]
+    #[should_panic(expected: ('Routes is empty', 'ENTRYPOINT_FAILED'))]
+    #[available_gas(20000000)]
+    fn should_throw_error_when_routes_is_empty() {
+        // Given
+        let exchange = deploy_exchange();
+        set_contract_address(exchange.get_owner());
+        let fees_recipient = contract_address_const::<0x1111>();
+        let token_from_address = deploy_mock_token(1000).contract_address;
+        let token_to_address = deploy_mock_token(1000).contract_address;
+        let beneficiary = contract_address_const::<0x12345>();
+        let token_from_amount = u256 { low: 1000, high: 0 };
+        let token_to_min_amount = u256 { low: 950, high: 0 };
+        let token_to_amount = u256 { low: 950, high: 0 };
+        let mut routes = ArrayTrait::new();
+        set_contract_address(beneficiary);
+
+        // When & Then
+        exchange
+            .multi_route_swap(
+                token_from_address,
+                token_from_amount,
+                token_to_address,
+                token_to_amount,
+                token_to_min_amount,
+                beneficiary,
+                0,
+                contract_address_const::<0x0>(),
+                routes
+            );
+    }
+
+    #[test]
+    #[should_panic(expected: ('Invalid token from', 'ENTRYPOINT_FAILED'))]
+    #[available_gas(20000000)]
+    fn should_throw_error_when_first_token_from_is_not_token_from() {
+        // Given
+        let exchange = deploy_exchange();
+        set_contract_address(exchange.get_owner());
+        let fees_recipient = contract_address_const::<0x1111>();
+        let token_from_address = deploy_mock_token(1000).contract_address;
+        let token_from_address_2 = deploy_mock_token(1000).contract_address;
+        let token_to_address = deploy_mock_token(1000).contract_address;
+        let beneficiary = contract_address_const::<0x12345>();
+        let token_from_amount = u256 { low: 1000, high: 0 };
+        let token_to_min_amount = u256 { low: 950, high: 0 };
+        let token_to_amount = u256 { low: 950, high: 0 };
+        let mut routes = ArrayTrait::new();
+        routes
+            .append(
+                Route {
+                    token_from: token_from_address_2,
+                    token_to: token_to_address,
+                    exchange_address: contract_address_const::<0x12>(),
+                    percent: 100,
+                    additional_swap_params: ArrayTrait::new()
+                }
+            );
+        set_contract_address(beneficiary);
+
+        // When & Then
+        exchange
+            .multi_route_swap(
+                token_from_address,
+                token_from_amount,
+                token_to_address,
+                token_to_amount,
+                token_to_min_amount,
+                beneficiary,
+                0,
+                contract_address_const::<0x0>(),
+                routes
+            );
+    }
+
+    #[test]
+    #[available_gas(20000000)]
+    #[should_panic(expected: ('Invalid token to', 'ENTRYPOINT_FAILED'))]
+    fn should_throw_error_when_last_token_to_is_not_token_to() {
+        // Given
+        let exchange = deploy_exchange();
+        let token_1_address = deploy_mock_token(10).contract_address;
+        let token_2_address = deploy_mock_token(10).contract_address;
+        let token_3_address = deploy_mock_token(10).contract_address;
+        let token_4_address = deploy_mock_token(10).contract_address;
+        let token_5_address = deploy_mock_token(10).contract_address;
+        let beneficiary = contract_address_const::<0x12345>();
+        let token_from_amount = u256 { low: 10, high: 0 };
+        let token_to_min_amount = u256 { low: 9, high: 0 };
+        let token_to_amount = u256 { low: 9, high: 0 };
+        let mut routes = ArrayTrait::new();
+        let exchange_address = contract_address_const::<0x12>();
+        routes
+            .append(
+                Route {
+                    token_from: token_1_address,
+                    token_to: token_2_address,
+                    exchange_address,
+                    percent: 100,
+                    additional_swap_params: ArrayTrait::new(),
+                }
+            );
+        routes
+            .append(
+                Route {
+                    token_from: token_2_address,
+                    token_to: token_2_address,
+                    exchange_address,
+                    percent: 33,
+                    additional_swap_params: ArrayTrait::new(),
+                }
+            );
+        routes
+            .append(
+                Route {
+                    token_from: token_2_address,
+                    token_to: token_3_address,
+                    exchange_address,
+                    percent: 50,
+                    additional_swap_params: ArrayTrait::new(),
+                }
+            );
+        routes
+            .append(
+                Route {
+                    token_from: token_2_address,
+                    token_to: token_4_address,
+                    exchange_address,
+                    percent: 100,
+                    additional_swap_params: ArrayTrait::new(),
+                }
+            );
+        routes
+            .append(
+                Route {
+                    token_from: token_3_address,
+                    token_to: token_5_address,
+                    exchange_address,
+                    percent: 100,
+                    additional_swap_params: ArrayTrait::new(),
+                }
+            );
+        routes
+            .append(
+                Route {
+                    token_from: token_4_address,
+                    token_to: token_3_address,
+                    exchange_address,
+                    percent: 100,
+                    additional_swap_params: ArrayTrait::new(),
+                }
+            );
+        set_contract_address(beneficiary);
+
+        // When & Then
+        exchange
+            .multi_route_swap(
+                token_1_address,
+                token_from_amount,
+                token_5_address,
+                token_to_amount,
+                token_to_min_amount,
+                beneficiary,
+                0,
+                contract_address_const::<0x0>(),
+                routes
+            );
+    }
+
+    #[test]
     #[available_gas(20000000)]
     #[should_panic(expected: ('Unknown exchange', 'ENTRYPOINT_FAILED'))]
     fn should_fail_when_exchange_is_unknown() {
