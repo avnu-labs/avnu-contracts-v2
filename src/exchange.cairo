@@ -53,6 +53,9 @@ mod Exchange {
     use avnu::math::muldiv::muldiv;
     use avnu::models::Route;
 
+    const MAX_AVNU_FEES_BPS: u128 = 100;
+    const MAX_INTEGRATOR_FEES_BPS: u128 = 500;
+
     #[storage]
     struct Storage {
         Ownable_owner: ContractAddress,
@@ -179,6 +182,7 @@ mod Exchange {
 
         fn set_fees_bps_0(ref self: ContractState, bps: u128) -> bool {
             self.assert_only_owner();
+            assert(bps <= MAX_AVNU_FEES_BPS, 'Fees are too high');
             self.fees_bps_0.write(bps);
             true
         }
@@ -189,6 +193,7 @@ mod Exchange {
 
         fn set_fees_bps_1(ref self: ContractState, bps: u128) -> bool {
             self.assert_only_owner();
+            assert(bps <= MAX_AVNU_FEES_BPS, 'Fees are too high');
             self.fees_bps_1.write(bps);
             true
         }
@@ -208,6 +213,7 @@ mod Exchange {
             let caller_address = get_caller_address();
             let contract_address = get_contract_address();
             let route_len = routes.len();
+            let routes_span = routes.span();
 
             // Execute all the pre-swap actions (some checks, retrieve token from...)
             self
@@ -220,6 +226,11 @@ mod Exchange {
                 );
 
             // Swap
+            assert(route_len > 0, 'Routes is empty');
+            let first_route: @Route = routes[0];
+            let last_route: @Route = routes[route_len - 1];
+            assert(*first_route.token_from == token_from_address, 'Invalid token from');
+            assert(*last_route.token_to == token_to_address, 'Invalid token to');
             self.apply_routes(routes, contract_address);
 
             // Execute all the post-swap actions (verify min amount, collect fees, transfer tokens, emit event...)
@@ -237,6 +248,11 @@ mod Exchange {
                     route_len
                 );
 
+            // Dict of bools are supported yet
+            let mut checked_tokens: Felt252Dict<u64> = Default::default();
+            // Token to has already been checked
+            checked_tokens.insert(token_to_address.into(), 1);
+            self.assert_no_remaining_tokens(contract_address, routes_span, checked_tokens);
             true
         }
     }
@@ -269,6 +285,7 @@ mod Exchange {
             assert(beneficiary == caller_address, 'Beneficiary is not the caller');
 
             // Transfer tokens to contract
+            assert(token_from_amount > 0, 'Token from amount is 0');
             let token_from = IERC20Dispatcher { contract_address: token_from_address };
             let token_from_balance = token_from.balanceOf(caller_address);
             assert(token_from_balance >= token_from_amount, 'Token from balance is too low');
@@ -318,6 +335,42 @@ mod Exchange {
                 );
         }
 
+        fn assert_no_remaining_tokens(
+            ref self: ContractState,
+            contract_address: ContractAddress,
+            mut routes: Span<Route>,
+            mut checked_tokens: Felt252Dict<u64>
+        ) {
+            if routes.len() == 0 {
+                return;
+            }
+
+            // Retrieve current route
+            let route: @Route = routes.pop_front().unwrap();
+
+            // Transfer residual tokens
+            self.assert_no_remaining_token(contract_address, *route.token_from, ref checked_tokens);
+            self.assert_no_remaining_token(contract_address, *route.token_to, ref checked_tokens);
+
+            self.assert_no_remaining_tokens(contract_address, routes, checked_tokens);
+        }
+
+        fn assert_no_remaining_token(
+            ref self: ContractState,
+            contract_address: ContractAddress,
+            token_address: ContractAddress,
+            ref checked_tokens: Felt252Dict<u64>
+        ) {
+            // Only do the check when token balance has not already been checked
+            if checked_tokens.get(token_address.into()) == 0 {
+                // Check balance and transfer tokens if necessary
+                let token = IERC20Dispatcher { contract_address: token_address };
+                let token_balance = token.balanceOf(contract_address);
+                assert(token_balance == 0, 'Residual tokens');
+                checked_tokens.insert(token_address.into(), 1);
+            }
+        }
+
         fn apply_routes(
             ref self: ContractState, mut routes: Array<Route>, contract_address: ContractAddress
         ) {
@@ -330,6 +383,8 @@ mod Exchange {
 
             // Calculating tokens to be passed to the exchange
             // percentage should be 2 for 2%
+            assert(route.percent > 0, 'Invalid route percent');
+            assert(route.percent <= 100, 'Invalid route percent');
             let token_from_balance = IERC20Dispatcher { contract_address: route.token_from }
                 .balanceOf(contract_address);
             let (token_from_amount, overflows) = muldiv(
@@ -365,6 +420,9 @@ mod Exchange {
             route_len: usize
         ) -> u256 {
             // Collect integrator's fees
+            assert(
+                integrator_fee_amount_bps <= MAX_INTEGRATOR_FEES_BPS, 'Integrator fees are too high'
+            );
             let integrator_fees_collected = self
                 .collect_fee_bps(
                     token, amount, integrator_fee_amount_bps, integrator_fee_recipient, true

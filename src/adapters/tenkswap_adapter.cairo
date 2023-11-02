@@ -50,7 +50,7 @@ mod TenkswapAdapter {
 
             // Init deadline
             let block_timestamp = get_block_timestamp();
-            let deadline = block_timestamp + 1000;
+            let deadline = block_timestamp;
 
             IERC20Dispatcher { contract_address: token_from_address }
                 .approve(exchange_address, token_from_amount);

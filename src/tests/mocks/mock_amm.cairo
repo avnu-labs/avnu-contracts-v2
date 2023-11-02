@@ -177,7 +177,8 @@ mod MockTenkSwap {
 #[starknet::contract]
 mod MockSwapAdapter {
     use avnu::adapters::ISwapAdapter;
-    use starknet::ContractAddress;
+    use avnu::tests::mocks::mock_erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
+    use starknet::{ContractAddress, get_contract_address};
 
     #[storage]
     struct Storage {}
@@ -193,6 +194,11 @@ mod MockSwapAdapter {
             token_to_min_amount: u256,
             to: ContractAddress,
             additional_swap_params: Array<felt252>,
-        ) {}
+        ) {
+            let caller = get_contract_address();
+            IERC20Dispatcher { contract_address: token_from_address }
+                .burn(caller, token_from_amount);
+            IERC20Dispatcher { contract_address: token_to_address }.mint(caller, token_from_amount);
+        }
     }
 }
