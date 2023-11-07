@@ -4,10 +4,6 @@ This repository contains the contracts used by [AVNU](https://www.avnu.fi/). You
 
 If you want to learn more about AVNU, and how we are able to provide the best execution on Starknet, you can visit our [documentation](https://doc.avnu.fi/).
 
-
-> **Warning**
-> Please note that **AVNU** is still in the early stages of development. Meanwhile kindly proceed with usage at your own discretion and risk.
-
 ## Structure
 
 - **Exchange**: Handles the swap. It contains all the routing logic
