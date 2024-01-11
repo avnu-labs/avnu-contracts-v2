@@ -43,9 +43,7 @@ mod MockEkubo {
             recipient: ContractAddress,
             amount: u128
         ) {}
-        fn deposit(ref self: ContractState, token_address: ContractAddress) -> u128 {
-            0
-        }
+        fn pay(ref self: ContractState, token_address: ContractAddress) {}
     }
 }
 
