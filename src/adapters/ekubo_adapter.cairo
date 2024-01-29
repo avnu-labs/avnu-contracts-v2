@@ -75,7 +75,7 @@ trait IEkuboRouter<TContractState> {
         amount: u128
     );
     fn get_pool_price(self: @TContractState, pool_key: PoolKey) -> PoolPrice;
-    fn deposit(ref self: TContractState, token_address: ContractAddress) -> u128;
+    fn pay(ref self: TContractState, token_address: ContractAddress);
 }
 
 #[starknet::contract]
@@ -184,15 +184,15 @@ mod EkuboAdapter {
             // Each swap generates a "delta", but does not trigger any token transfers.
             // A negative delta indicates you are owed tokens. A positive delta indicates core owes you tokens.
 
-            // Transfer token_from to the exchange
+            // Approve token_from to the exchange
             let token_from = IERC20Dispatcher { contract_address: params.token_from_address };
             let amount_from: i129 = if is_token1 {
                 delta.amount1
             } else {
                 delta.amount0
             };
-            token_from.transfer(ekubo.contract_address, amount_from.mag.into());
-            ekubo.deposit(params.token_from_address);
+            token_from.approve(ekubo.contract_address, amount_from.mag.into());
+            ekubo.pay(params.token_from_address);
 
             // Withdraw
             let amount_to: i129 = if is_token1 {
