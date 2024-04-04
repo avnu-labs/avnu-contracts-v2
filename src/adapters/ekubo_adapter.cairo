@@ -50,8 +50,6 @@ struct PoolPrice {
     sqrt_ratio: u256,
     // the current tick, up to 32 bits
     tick: i129,
-    // the places where specified extension should be called, 5 bits
-    call_points: CallPoints,
 }
 
 // The points at which an extension should be called
