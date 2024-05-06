@@ -8,6 +8,7 @@ mod nostrav2_adapter;
 mod sithswap_adapter;
 mod starkdefi_adapter;
 mod tenkswap_adapter;
+mod vstrk_adapter;
 
 use starknet::ContractAddress;
 
