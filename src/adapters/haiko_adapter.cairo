@@ -26,13 +26,11 @@ trait IHaikoRouter<TContractState> {
 
 #[starknet::contract]
 mod HaikoAdapter {
-    use array::ArrayTrait;
     use avnu::adapters::ISwapAdapter;
     use avnu::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
     use avnu::math::sqrt_ratio::compute_sqrt_ratio_limit;
     use starknet::{get_block_timestamp, ContractAddress};
     use super::{IHaikoRouterDispatcher, IHaikoRouterDispatcherTrait, SwapResult};
-    use traits::Into;
 
     const MIN_SQRT_RATIO: u256 = 67774731328;
     const MAX_SQRT_RATIO: u256 = 1475476155217232889259591669213284373330197463;
@@ -40,7 +38,7 @@ mod HaikoAdapter {
     #[storage]
     struct Storage {}
 
-    #[external(v0)]
+    #[abi(embed_v0)]
     impl HaikoAdapter of ISwapAdapter<ContractState> {
         fn swap(
             self: @ContractState,
@@ -61,26 +59,14 @@ mod HaikoAdapter {
             let sqrt_ratio_distance: u256 = (*additional_swap_params[1]).into();
             let is_buy = sphinx.base_token(market_id) == token_to_address.into();
             let sqrt_price = sphinx.curr_sqrt_price(market_id);
-            let sqrt_ratio_limit = compute_sqrt_ratio_limit(
-                sqrt_price, sqrt_ratio_distance, is_buy, MIN_SQRT_RATIO, MAX_SQRT_RATIO
-            );
+            let sqrt_ratio_limit = compute_sqrt_ratio_limit(sqrt_price, sqrt_ratio_distance, is_buy, MIN_SQRT_RATIO, MAX_SQRT_RATIO);
             let deadline = get_block_timestamp();
 
             // Approve
-            IERC20Dispatcher { contract_address: token_from_address }
-                .approve(exchange_address, token_from_amount);
+            IERC20Dispatcher { contract_address: token_from_address }.approve(exchange_address, token_from_amount);
 
             // Swap
-            sphinx
-                .swap(
-                    market_id,
-                    is_buy,
-                    token_from_amount,
-                    true,
-                    Option::Some(sqrt_ratio_limit),
-                    Option::None,
-                    Option::Some(deadline)
-                );
+            sphinx.swap(market_id, is_buy, token_from_amount, true, Option::Some(sqrt_ratio_limit), Option::None, Option::Some(deadline));
         }
     }
 }

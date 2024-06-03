@@ -1,6 +1,4 @@
-fn compute_sqrt_ratio_limit(
-    sqrt_ratio: u256, distance: u256, is_token1: bool, min: u256, max: u256
-) -> u256 {
+fn compute_sqrt_ratio_limit(sqrt_ratio: u256, distance: u256, is_token1: bool, min: u256, max: u256) -> u256 {
     let mut sqrt_ratio_limit = if is_token1 {
         if (distance > max) {
             max

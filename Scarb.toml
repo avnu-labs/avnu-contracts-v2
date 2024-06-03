@@ -3,11 +3,17 @@ name = "avnu"
 version = "1.0.0"
 description = "Best execution on Starknet. No fluff."
 homepage = "https://app.avnu.fi/"
-cairo-version = "2.0.0"
+edition = "2023_10"
+cairo-version = "2.6.3"
 
 [dependencies]
-starknet = "2.2.0"
+starknet = "2.6.3"
+avnu_lib = { git = "https://github.com/avnu-labs/avnu-contracts-lib", tag = "v0.1.0" }
 
 [[target.starknet-contract]]
 sierra = true
 casm = true
+
+[tool.fmt]
+sort-module-level-items = true
+max-line-length = 140

@@ -1,18 +1,18 @@
 mod Swap {
-    use array::{Array, ArrayTrait};
-    use starknet::{contract_address_const, get_caller_address};
-    use avnu::tests::helper::{deploy_mock_tenkswap, deploy_mock_token, deploy_tenkswap_adapter};
     use avnu::adapters::ISwapAdapterDispatcherTrait;
+    use avnu_tests::helper::{deploy_mock_myswap, deploy_mock_token, deploy_myswap_adapter};
+    use starknet::{contract_address_const, get_caller_address};
 
     #[test]
     #[available_gas(2000000)]
-    fn should_call_tenkswap() {
+    fn should_call_myswap() {
         // Given
-        let adapter = deploy_tenkswap_adapter();
-        let exchange = deploy_mock_tenkswap();
-        let token_from = deploy_mock_token(get_caller_address(), 1);
-        let token_to = deploy_mock_token(get_caller_address(), 0);
+        let adapter = deploy_myswap_adapter();
+        let exchange = deploy_mock_myswap();
+        let token_from = deploy_mock_token(get_caller_address(), 1, 1);
+        let token_to = deploy_mock_token(get_caller_address(), 0, 2);
         let mut additional_params = ArrayTrait::new();
+        additional_params.append(0x9);
         let to = contract_address_const::<0x4>();
 
         // When
@@ -35,12 +35,11 @@ mod Swap {
     #[should_panic(expected: ('Invalid swap params', 'ENTRYPOINT_FAILED'))]
     fn should_fail_when_invalid_additional_swap_params() {
         // Given
-        let adapter = deploy_tenkswap_adapter();
-        let exchange = deploy_mock_tenkswap();
-        let token_from = deploy_mock_token(get_caller_address(), 1);
-        let token_to = deploy_mock_token(get_caller_address(), 0);
+        let adapter = deploy_myswap_adapter();
+        let exchange = deploy_mock_myswap();
+        let token_from = deploy_mock_token(get_caller_address(), 1, 1);
+        let token_to = deploy_mock_token(get_caller_address(), 0, 2);
         let mut additional_params = ArrayTrait::new();
-        additional_params.append(0x1);
         let to = contract_address_const::<0x4>();
 
         // When & Then

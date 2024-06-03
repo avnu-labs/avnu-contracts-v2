@@ -1,2 +1,2 @@
-mod locker;
 mod erc20;
+mod locker;

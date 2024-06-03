@@ -20,20 +20,15 @@ mod ComputeSqrtRatioLimit {
     #[test]
     fn should_return_max_when_u256_add_Overflow() {
         // Given
-        let sqrt_ratio =
-            97896044618658097711785492504343953926634992332820282019728792003956564819967;
-        let distance =
-            57896044618658097711785492504343953926634992332820282019728792003956564819967;
+        let sqrt_ratio = 97896044618658097711785492504343953926634992332820282019728792003956564819967;
+        let distance = 57896044618658097711785492504343953926634992332820282019728792003956564819967;
         let is_token1 = true;
 
         // When
         let result = compute_sqrt_ratio_limit(sqrt_ratio, distance, is_token1, MIN, MAX);
 
         // Then
-        assert(
-            result == 6277100250585753475930931601400621808602321654880405518632,
-            'invalid sqrt_ratio'
-        );
+        assert(result == 6277100250585753475930931601400621808602321654880405518632, 'invalid sqrt_ratio');
     }
 
     #[test]

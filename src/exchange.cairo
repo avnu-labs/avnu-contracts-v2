@@ -1,17 +1,13 @@
-use starknet::{ContractAddress, ClassHash};
 use avnu::models::Route;
+use starknet::{ContractAddress, ClassHash};
 
 #[starknet::interface]
 trait IExchange<TContractState> {
     fn get_owner(self: @TContractState) -> ContractAddress;
     fn transfer_ownership(ref self: TContractState, new_owner: ContractAddress) -> bool;
     fn upgrade_class(ref self: TContractState, new_class_hash: ClassHash) -> bool;
-    fn get_adapter_class_hash(
-        self: @TContractState, exchange_address: ContractAddress
-    ) -> ClassHash;
-    fn set_adapter_class_hash(
-        ref self: TContractState, exchange_address: ContractAddress, adapter_class_hash: ClassHash
-    ) -> bool;
+    fn get_adapter_class_hash(self: @TContractState, exchange_address: ContractAddress) -> ClassHash;
+    fn set_adapter_class_hash(ref self: TContractState, exchange_address: ContractAddress, adapter_class_hash: ClassHash) -> bool;
     fn get_fees_active(self: @TContractState) -> bool;
     fn set_fees_active(ref self: TContractState, active: bool) -> bool;
     fn get_fees_recipient(self: @TContractState) -> ContractAddress;
@@ -36,22 +32,14 @@ trait IExchange<TContractState> {
 
 #[starknet::contract]
 mod Exchange {
-    use array::ArrayTrait;
-    use option::OptionTrait;
-    use result::ResultTrait;
-    use traits::{TryInto, Into};
-    use zeroable::Zeroable;
-    use super::IExchange;
-    use starknet::{
-        replace_class_syscall, ContractAddress, ClassHash, get_caller_address, get_contract_address
-    };
     use avnu::adapters::{ISwapAdapterLibraryDispatcher, ISwapAdapterDispatcherTrait};
     use avnu::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
-    use avnu::interfaces::locker::{
-        ILocker, ISwapAfterLockLibraryDispatcher, ISwapAfterLockDispatcherTrait
-    };
-    use avnu::math::muldiv::muldiv;
+    use avnu::interfaces::locker::{ILocker, ISwapAfterLockLibraryDispatcher, ISwapAfterLockDispatcherTrait};
     use avnu::models::Route;
+    use avnu_lib::math::muldiv::muldiv;
+    use core::num::traits::Zero;
+    use starknet::{SyscallResultTrait, replace_class_syscall, ContractAddress, ClassHash, get_caller_address, get_contract_address};
+    use super::IExchange;
 
     const MAX_AVNU_FEES_BPS: u128 = 100;
     const MAX_INTEGRATOR_FEES_BPS: u128 = 500;
@@ -89,7 +77,7 @@ mod Exchange {
         new_owner: ContractAddress,
     }
 
-    #[external(v0)]
+    #[abi(embed_v0)]
     impl ExchangeLocker of ILocker<ContractState> {
         fn locked(ref self: ContractState, id: u32, data: Array<felt252>) -> Array<felt252> {
             let caller_address = get_caller_address();
@@ -113,15 +101,13 @@ mod Exchange {
     }
 
     #[constructor]
-    fn constructor(
-        ref self: ContractState, owner: ContractAddress, fee_recipient: ContractAddress
-    ) {
+    fn constructor(ref self: ContractState, owner: ContractAddress, fee_recipient: ContractAddress) {
         // Set owner & fee collector address
         self._transfer_ownership(owner);
         self.fees_recipient.write(fee_recipient)
     }
 
-    #[external(v0)]
+    #[abi(embed_v0)]
     impl Exchange of IExchange<ContractState> {
         fn get_owner(self: @ContractState) -> ContractAddress {
             self.Ownable_owner.read()
@@ -136,21 +122,15 @@ mod Exchange {
 
         fn upgrade_class(ref self: ContractState, new_class_hash: ClassHash) -> bool {
             self.assert_only_owner();
-            replace_class_syscall(new_class_hash);
+            replace_class_syscall(new_class_hash).unwrap_syscall();
             true
         }
 
-        fn get_adapter_class_hash(
-            self: @ContractState, exchange_address: ContractAddress
-        ) -> ClassHash {
+        fn get_adapter_class_hash(self: @ContractState, exchange_address: ContractAddress) -> ClassHash {
             self.AdapterClassHash.read(exchange_address)
         }
 
-        fn set_adapter_class_hash(
-            ref self: ContractState,
-            exchange_address: ContractAddress,
-            adapter_class_hash: ClassHash
-        ) -> bool {
+        fn set_adapter_class_hash(ref self: ContractState, exchange_address: ContractAddress, adapter_class_hash: ClassHash) -> bool {
             self.assert_only_owner();
             self.AdapterClassHash.write(exchange_address, adapter_class_hash);
             true
@@ -216,14 +196,7 @@ mod Exchange {
             let routes_span = routes.span();
 
             // Execute all the pre-swap actions (some checks, retrieve token from...)
-            self
-                .before_swap(
-                    contract_address,
-                    caller_address,
-                    token_from_address,
-                    token_from_amount,
-                    beneficiary
-                );
+            self.before_swap(contract_address, caller_address, token_from_address, token_from_amount, beneficiary);
 
             // Swap
             assert(route_len > 0, 'Routes is empty');
@@ -309,13 +282,7 @@ mod Exchange {
             let token_to = IERC20Dispatcher { contract_address: token_to_address };
             let received_token_to = token_to.balanceOf(contract_address);
             let token_to_final_amount = self
-                .collect_fees(
-                    token_to,
-                    received_token_to,
-                    integrator_fee_amount_bps,
-                    integrator_fee_recipient,
-                    route_len
-                );
+                .collect_fees(token_to, received_token_to, integrator_fee_amount_bps, integrator_fee_recipient, route_len);
 
             // Check amount of token to and transfer tokens
             assert(token_to_min_amount <= token_to_final_amount, 'Insufficient tokens received');
@@ -336,10 +303,7 @@ mod Exchange {
         }
 
         fn assert_no_remaining_tokens(
-            ref self: ContractState,
-            contract_address: ContractAddress,
-            mut routes: Span<Route>,
-            mut checked_tokens: Felt252Dict<u64>
+            ref self: ContractState, contract_address: ContractAddress, mut routes: Span<Route>, mut checked_tokens: Felt252Dict<u64>
         ) {
             if routes.len() == 0 {
                 return;
@@ -356,10 +320,7 @@ mod Exchange {
         }
 
         fn assert_no_remaining_token(
-            ref self: ContractState,
-            contract_address: ContractAddress,
-            token_address: ContractAddress,
-            ref checked_tokens: Felt252Dict<u64>
+            ref self: ContractState, contract_address: ContractAddress, token_address: ContractAddress, ref checked_tokens: Felt252Dict<u64>
         ) {
             // Only do the check when token balance has not already been checked
             if checked_tokens.get(token_address.into()) == 0 {
@@ -371,9 +332,7 @@ mod Exchange {
             }
         }
 
-        fn apply_routes(
-            ref self: ContractState, mut routes: Array<Route>, contract_address: ContractAddress
-        ) {
+        fn apply_routes(ref self: ContractState, mut routes: Array<Route>, contract_address: ContractAddress) {
             if (routes.len() == 0) {
                 return;
             }
@@ -385,11 +344,8 @@ mod Exchange {
             // percentage should be 2 for 2%
             assert(route.percent > 0, 'Invalid route percent');
             assert(route.percent <= 100, 'Invalid route percent');
-            let token_from_balance = IERC20Dispatcher { contract_address: route.token_from }
-                .balanceOf(contract_address);
-            let (token_from_amount, overflows) = muldiv(
-                token_from_balance, route.percent.into(), 100_u256, false
-            );
+            let token_from_balance = IERC20Dispatcher { contract_address: route.token_from }.balanceOf(contract_address);
+            let (token_from_amount, overflows) = muldiv(token_from_balance, route.percent.into(), 100_u256, false);
             assert(overflows == false, 'Overflow: Invalid percent');
 
             // Get adapter class hash
@@ -420,13 +376,8 @@ mod Exchange {
             route_len: usize
         ) -> u256 {
             // Collect integrator's fees
-            assert(
-                integrator_fee_amount_bps <= MAX_INTEGRATOR_FEES_BPS, 'Integrator fees are too high'
-            );
-            let integrator_fees_collected = self
-                .collect_fee_bps(
-                    token, amount, integrator_fee_amount_bps, integrator_fee_recipient, true
-                );
+            assert(integrator_fee_amount_bps <= MAX_INTEGRATOR_FEES_BPS, 'Integrator fees are too high');
+            let integrator_fees_collected = self.collect_fee_bps(token, amount, integrator_fee_amount_bps, integrator_fee_recipient, true);
 
             // Collect AVNU's fees
             let bps = if route_len > 1 {
@@ -434,10 +385,7 @@ mod Exchange {
             } else {
                 self.get_fees_bps_0()
             };
-            let avnu_fees_collected = self
-                .collect_fee_bps(
-                    token, amount, bps, self.get_fees_recipient(), self.get_fees_active()
-                );
+            let avnu_fees_collected = self.collect_fee_bps(token, amount, bps, self.get_fees_recipient(), self.get_fees_active());
 
             // Compute and return amount minus fees
             amount - integrator_fees_collected - avnu_fees_collected
@@ -455,9 +403,7 @@ mod Exchange {
             // -> It's integrator work to defined it correctly
             if (!fee_amount_bps.is_zero() && !fee_recipient.is_zero() && is_active) {
                 // Compute fee amount
-                let (fee_amount, overflows) = muldiv(
-                    amount, fee_amount_bps.into(), 10000_u256, false
-                );
+                let (fee_amount, overflows) = muldiv(amount, fee_amount_bps.into(), 10000_u256, false);
                 assert(overflows == false, 'Overflow: Invalid fee');
 
                 // Collect fees from contract

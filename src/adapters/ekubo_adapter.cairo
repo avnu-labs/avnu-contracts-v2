@@ -66,29 +66,18 @@ struct CallPoints {
 trait IEkuboRouter<TContractState> {
     fn lock(ref self: TContractState, data: Array<felt252>) -> Array<felt252>;
     fn swap(ref self: TContractState, pool_key: PoolKey, params: SwapParameters) -> Delta;
-    fn withdraw(
-        ref self: TContractState,
-        token_address: ContractAddress,
-        recipient: ContractAddress,
-        amount: u128
-    );
+    fn withdraw(ref self: TContractState, token_address: ContractAddress, recipient: ContractAddress, amount: u128);
     fn get_pool_price(self: @TContractState, pool_key: PoolKey) -> PoolPrice;
     fn pay(ref self: TContractState, token_address: ContractAddress);
 }
 
 #[starknet::contract]
 mod EkuboAdapter {
-    use array::{Array, ArrayTrait, SpanTrait};
     use avnu::adapters::ISwapAdapter;
     use avnu::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
     use avnu::interfaces::locker::ISwapAfterLock;
     use avnu::math::sqrt_ratio::compute_sqrt_ratio_limit;
-    use integer::{u256_overflow_mul, BoundedU32};
-    use option::OptionTrait;
-    use result::ResultTrait;
-    use serde::Serde;
-    use traits::Into;
-    use traits::TryInto;
+    use core::integer::{u256_overflow_mul, BoundedU32};
     use starknet::ContractAddress;
     use super::{IEkuboRouterDispatcher, IEkuboRouterDispatcherTrait, PoolKey, SwapParameters, i129};
 
@@ -109,7 +98,7 @@ mod EkuboAdapter {
         sqrt_ratio_distance: u256,
     }
 
-    #[external(v0)]
+    #[abi(embed_v0)]
     impl EkuboAdapter of ISwapAdapter<ContractState> {
         fn swap(
             self: @ContractState,
@@ -149,13 +138,12 @@ mod EkuboAdapter {
         }
     }
 
-    #[external(v0)]
+    #[abi(embed_v0)]
     impl SwapAfterLock of ISwapAfterLock<ContractState> {
         fn swap_after_lock(ref self: ContractState, data: Array<felt252>) {
             // Deserialize data
             let mut input_span = data.span();
-            let mut params = Serde::<SwapAfterLockParameters>::deserialize(ref input_span)
-                .expect('Invalid callback data');
+            let mut params = Serde::<SwapAfterLockParameters>::deserialize(ref input_span).expect('Invalid callback data');
 
             // Init dispatcher
             let ekubo = IEkuboRouterDispatcher { contract_address: params.contract_address };
@@ -165,17 +153,10 @@ mod EkuboAdapter {
             assert(params.token_from_amount.high == 0, 'Overflow: Unsupported amount');
             let pool_price = ekubo.get_pool_price(params.pool_key);
             let sqrt_ratio_limit = compute_sqrt_ratio_limit(
-                pool_price.sqrt_ratio,
-                params.sqrt_ratio_distance,
-                is_token1,
-                MIN_SQRT_RATIO,
-                MAX_SQRT_RATIO
+                pool_price.sqrt_ratio, params.sqrt_ratio_distance, is_token1, MIN_SQRT_RATIO, MAX_SQRT_RATIO
             );
             let swap_params = SwapParameters {
-                amount: i129 { mag: params.token_from_amount.low, sign: false },
-                is_token1,
-                sqrt_ratio_limit,
-                skip_ahead: 100
+                amount: i129 { mag: params.token_from_amount.low, sign: false }, is_token1, sqrt_ratio_limit, skip_ahead: 100
             };
             let delta = ekubo.swap(params.pool_key, swap_params);
 
