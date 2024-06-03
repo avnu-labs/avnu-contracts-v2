@@ -46,7 +46,7 @@ struct Delta {
 
 #[derive(Copy, Drop, Serde, PartialEq)]
 struct PoolPrice {
-    // the current ratio, up to 192 bits
+    // the current ratio, up to 128 bits
     sqrt_ratio: u256,
     // the current tick, up to 32 bits
     tick: i129,
