@@ -16,6 +16,8 @@ trait IExchange<TContractState> {
     fn set_fees_bps_0(ref self: TContractState, bps: u128) -> bool;
     fn get_fees_bps_1(self: @TContractState) -> u128;
     fn set_fees_bps_1(ref self: TContractState, bps: u128) -> bool;
+    fn get_swap_exact_token_to_fees_bps(self: @TContractState) -> u128;
+    fn set_swap_exact_token_to_fees_bps(ref self: TContractState, bps: u128) -> bool;
     fn multi_route_swap(
         ref self: TContractState,
         token_from_address: ContractAddress,
@@ -26,6 +28,16 @@ trait IExchange<TContractState> {
         beneficiary: ContractAddress,
         integrator_fee_amount_bps: u128,
         integrator_fee_recipient: ContractAddress,
+        routes: Array<Route>,
+    ) -> bool;
+    fn swap_exact_token_to(
+        ref self: TContractState,
+        token_from_address: ContractAddress,
+        token_from_amount: u256,
+        token_from_max_amount: u256,
+        token_to_address: ContractAddress,
+        token_to_amount: u256,
+        beneficiary: ContractAddress,
         routes: Array<Route>,
     ) -> bool;
 }
@@ -51,6 +63,7 @@ mod Exchange {
         fees_active: bool,
         fees_bps_0: u128,
         fees_bps_1: u128,
+        swap_exact_token_to_fees_bps: u128,
         fees_recipient: ContractAddress,
     }
 
@@ -178,6 +191,17 @@ mod Exchange {
             true
         }
 
+        fn get_swap_exact_token_to_fees_bps(self: @ContractState) -> u128 {
+            self.swap_exact_token_to_fees_bps.read()
+        }
+
+        fn set_swap_exact_token_to_fees_bps(ref self: ContractState, bps: u128) -> bool {
+            self.assert_only_owner();
+            assert(bps <= MAX_AVNU_FEES_BPS, 'Fees are too high');
+            self.swap_exact_token_to_fees_bps.write(bps);
+            true
+        }
+
         fn multi_route_swap(
             ref self: ContractState,
             token_from_address: ContractAddress,
@@ -192,18 +216,14 @@ mod Exchange {
         ) -> bool {
             let caller_address = get_caller_address();
             let contract_address = get_contract_address();
-            let route_len = routes.len();
+            let token_from = IERC20Dispatcher { contract_address: token_from_address };
+            let token_to = IERC20Dispatcher { contract_address: token_to_address };
             let routes_span = routes.span();
 
             // Execute all the pre-swap actions (some checks, retrieve token from...)
-            self.before_swap(contract_address, caller_address, token_from_address, token_from_amount, beneficiary);
+            self.before_swap(contract_address, caller_address, token_from, token_from_amount, token_to, beneficiary, routes_span);
 
             // Swap
-            assert(route_len > 0, 'Routes is empty');
-            let first_route: @Route = routes[0];
-            let last_route: @Route = routes[route_len - 1];
-            assert(*first_route.token_from == token_from_address, 'Invalid token from');
-            assert(*last_route.token_to == token_to_address, 'Invalid token to');
             self.apply_routes(routes, contract_address);
 
             // Execute all the post-swap actions (verify min amount, collect fees, transfer tokens, emit event...)
@@ -211,14 +231,81 @@ mod Exchange {
                 .after_swap(
                     contract_address,
                     caller_address,
-                    token_from_address,
+                    token_from,
                     token_from_amount,
-                    token_to_address,
+                    token_to,
                     token_to_min_amount,
                     beneficiary,
                     integrator_fee_amount_bps,
                     integrator_fee_recipient,
-                    route_len
+                    routes_span.len()
+                );
+
+            // Dict of bools are supported yet
+            let mut checked_tokens: Felt252Dict<u64> = Default::default();
+            // Token to has already been checked
+            checked_tokens.insert(token_to_address.into(), 1);
+            self.assert_no_remaining_tokens(contract_address, routes_span, checked_tokens);
+            true
+        }
+
+        fn swap_exact_token_to(
+            ref self: ContractState,
+            token_from_address: ContractAddress,
+            token_from_amount: u256,
+            token_from_max_amount: u256,
+            token_to_address: ContractAddress,
+            token_to_amount: u256,
+            beneficiary: ContractAddress,
+            routes: Array<Route>,
+        ) -> bool {
+            let caller_address = get_caller_address();
+            let contract_address = get_contract_address();
+            let token_from = IERC20Dispatcher { contract_address: token_from_address };
+            let token_to = IERC20Dispatcher { contract_address: token_to_address };
+            let routes_span = routes.span();
+
+            // Execute all the pre-swap actions (some checks, retrieve token from...)
+            assert(token_from_max_amount >= token_from_amount, 'Invalid token from max amount');
+            self.before_swap(contract_address, caller_address, token_from, token_from_amount, token_to, beneficiary, routes_span);
+
+            // Swap
+            let (token_from_amount_used, token_to_amount_received) = self
+                ._swap_exact_token_to(
+                    contract_address,
+                    caller_address,
+                    token_from,
+                    token_from_amount,
+                    token_from_max_amount,
+                    token_to,
+                    token_to_amount,
+                    routes
+                );
+
+            // Check amount of token to and transfer tokens
+            assert(token_to_amount <= token_to_amount_received, 'Insufficient tokens received');
+            token_to.transfer(beneficiary, token_to_amount);
+
+            // Collect fees
+            let fees_amount = token_to_amount_received - token_to_amount;
+            if (fees_amount > 0) {
+                assert(self.get_fees_active(), 'Fees are not active');
+                let fees_recipient = self.get_fees_recipient();
+                assert(!fees_recipient.is_zero(), 'Fee recipient is empty');
+                token_to.transfer(fees_recipient, fees_amount);
+            }
+
+            // Emit event
+            self
+                .emit(
+                    Swap {
+                        taker_address: caller_address,
+                        sell_address: token_from_address,
+                        sell_amount: token_from_amount_used,
+                        buy_address: token_to_address,
+                        buy_amount: token_to_amount,
+                        beneficiary: beneficiary
+                    }
                 );
 
             // Dict of bools are supported yet
@@ -249,17 +336,37 @@ mod Exchange {
             ref self: ContractState,
             contract_address: ContractAddress,
             caller_address: ContractAddress,
-            token_from_address: ContractAddress,
+            token_from: IERC20Dispatcher,
             token_from_amount: u256,
+            token_to: IERC20Dispatcher,
             beneficiary: ContractAddress,
+            routes: Span<Route>
         ) {
             // In the future, the beneficiary may not be the caller
             // Check if beneficiary == caller_address
             assert(beneficiary == caller_address, 'Beneficiary is not the caller');
 
             // Transfer tokens to contract
+            self.collect_token_from(contract_address, caller_address, token_from, token_from_amount);
+
+            // Check routes validity
+            let route_len = routes.len();
+            assert(route_len > 0, 'Routes is empty');
+            let first_route: @Route = routes[0];
+            let last_route: @Route = routes[route_len - 1];
+            assert(*first_route.token_from == token_from.contract_address, 'Invalid token from');
+            assert(*last_route.token_to == token_to.contract_address, 'Invalid token to');
+        }
+
+        fn collect_token_from(
+            ref self: ContractState,
+            contract_address: ContractAddress,
+            caller_address: ContractAddress,
+            token_from: IERC20Dispatcher,
+            token_from_amount: u256,
+        ) {
+            // Transfer tokens to contract
             assert(token_from_amount > 0, 'Token from amount is 0');
-            let token_from = IERC20Dispatcher { contract_address: token_from_address };
             let token_from_balance = token_from.balanceOf(caller_address);
             assert(token_from_balance >= token_from_amount, 'Token from balance is too low');
             token_from.transferFrom(caller_address, contract_address, token_from_amount);
@@ -269,9 +376,9 @@ mod Exchange {
             ref self: ContractState,
             contract_address: ContractAddress,
             caller_address: ContractAddress,
-            token_from_address: ContractAddress,
+            token_from: IERC20Dispatcher,
             token_from_amount: u256,
-            token_to_address: ContractAddress,
+            token_to: IERC20Dispatcher,
             token_to_min_amount: u256,
             beneficiary: ContractAddress,
             integrator_fee_amount_bps: u128,
@@ -279,10 +386,9 @@ mod Exchange {
             route_len: usize
         ) {
             // Collect fees
-            let token_to = IERC20Dispatcher { contract_address: token_to_address };
-            let received_token_to = token_to.balanceOf(contract_address);
+            let token_to_amount_received = token_to.balanceOf(contract_address);
             let token_to_final_amount = self
-                .collect_fees(token_to, received_token_to, integrator_fee_amount_bps, integrator_fee_recipient, route_len);
+                .collect_fees(token_to, token_to_amount_received, integrator_fee_amount_bps, integrator_fee_recipient, route_len);
 
             // Check amount of token to and transfer tokens
             assert(token_to_min_amount <= token_to_final_amount, 'Insufficient tokens received');
@@ -293,13 +399,66 @@ mod Exchange {
                 .emit(
                     Swap {
                         taker_address: caller_address,
-                        sell_address: token_from_address,
+                        sell_address: token_from.contract_address,
                         sell_amount: token_from_amount,
-                        buy_address: token_to_address,
+                        buy_address: token_to.contract_address,
                         buy_amount: token_to_final_amount,
                         beneficiary: beneficiary
                     }
                 );
+        }
+
+        fn _swap_exact_token_to(
+            ref self: ContractState,
+            contract_address: ContractAddress,
+            caller_address: ContractAddress,
+            token_from: IERC20Dispatcher,
+            token_from_amount: u256,
+            token_from_max_amount: u256,
+            token_to: IERC20Dispatcher,
+            token_to_amount: u256,
+            routes: Array<Route>,
+        ) -> (u256, u256) {
+            // First, swap with 0% of slippage
+            self.apply_routes(routes.clone(), contract_address);
+            let mut token_from_amount_used = token_from_amount;
+            let mut token_from_last_amount_used = token_from_amount;
+            let mut remaining_token_from_amount = token_from_max_amount - token_from_amount;
+            let mut token_to_amount_received = token_to.balanceOf(contract_address);
+            let mut token_to_last_amount_received = token_to_amount_received;
+
+            let target_fees_bps = self.get_swap_exact_token_to_fees_bps();
+            let (fee_amount_target, overflows) = muldiv(token_to_amount, target_fees_bps.into(), 10000_u256, false);
+            assert(overflows == false, 'Overflow: Invalid fee');
+
+            // While the token_to_amount is not reached, we continue to add more token_from
+            let mut remaining_iterations = 3;
+            // The fee_amount_target is not included here. We only use the fee_amount_target when computing the token_to_missing_amount
+            while token_to_amount > token_to_amount_received {
+                assert(remaining_iterations != 0, 'Too many iterations');
+
+                // Collect the necessary token from amount
+                let token_to_missing_amount = token_to_amount + fee_amount_target - token_to_amount_received;
+                let (token_from_amount_to_transfer, overflows) = muldiv(
+                    token_from_last_amount_used, token_to_missing_amount, token_to_last_amount_received, true
+                );
+                assert(overflows == false, 'Overflow: swap iteration');
+                assert(token_from_amount_to_transfer <= remaining_token_from_amount, 'Insufficient token from amount');
+                self.collect_token_from(contract_address, caller_address, token_from, token_from_amount_to_transfer);
+
+                // Swap
+                self.apply_routes(routes.clone(), contract_address);
+
+                token_from_amount_used += token_from_amount_to_transfer;
+                token_from_last_amount_used = token_from_amount_to_transfer;
+                remaining_token_from_amount -= token_from_amount_to_transfer;
+                remaining_iterations -= 1;
+                let token_to_balance = token_to.balanceOf(contract_address);
+                token_to_last_amount_received = token_to_balance - token_to_amount_received;
+                token_to_amount_received = token_to_balance;
+            };
+
+            (token_from_amount_used, token_to_amount_received)
         }
 
         fn assert_no_remaining_tokens(

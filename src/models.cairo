@@ -1,6 +1,6 @@
 use starknet::ContractAddress;
 
-#[derive(Drop, Serde)]
+#[derive(Drop, Serde, Clone)]
 struct Route {
     token_from: ContractAddress,
     token_to: ContractAddress,
