@@ -4,6 +4,7 @@ use avnu::models::Route;
 use avnu_tests::helper::{deploy_exchange, deploy_mock_token};
 use starknet::testing::{set_contract_address, pop_log_raw};
 use starknet::{contract_address_to_felt252, ClassHash, ContractAddress, contract_address_const, class_hash_const};
+const ROUTE_PERCENT_FACTOR: u128 = 10000000000;
 
 mod GetOwner {
     use super::{deploy_exchange, IExchangeDispatcherTrait, contract_address_const};
@@ -451,7 +452,7 @@ mod MultiRouteSwap {
     use avnu::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
     use avnu_tests::mocks::mock_erc20::MockERC20::Transfer;
     use super::{
-        Exchange, IExchangeDispatcher, ContractAddress, deploy_exchange, deploy_mock_token, IExchangeDispatcherTrait,
+        ROUTE_PERCENT_FACTOR, Exchange, IExchangeDispatcher, ContractAddress, deploy_exchange, deploy_mock_token, IExchangeDispatcherTrait,
         contract_address_const, Route, set_contract_address, pop_log_raw, Swap, Event, OwnershipTransferred, contract_address_to_felt252
     };
 
@@ -487,7 +488,7 @@ mod MultiRouteSwap {
                     token_from: token_from_address,
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
-                    percent: 100,
+                    percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new()
                 }
             );
@@ -555,7 +556,7 @@ mod MultiRouteSwap {
                     token_from: token_from_address,
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
-                    percent: 40,
+                    percent: 40 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new()
                 }
             );
@@ -598,7 +599,7 @@ mod MultiRouteSwap {
                     token_from: token_from_address,
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
-                    percent: 100,
+                    percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new()
                 }
             );
@@ -641,7 +642,7 @@ mod MultiRouteSwap {
                     token_from: token_from_address,
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
-                    percent: 100,
+                    percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new()
                 }
             );
@@ -689,7 +690,7 @@ mod MultiRouteSwap {
                     token_from: token_from_address,
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
-                    percent: 100,
+                    percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new()
                 }
             );
@@ -771,7 +772,7 @@ mod MultiRouteSwap {
                     token_from: token_from_address,
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
-                    percent: 100,
+                    percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new()
                 }
             );
@@ -819,7 +820,7 @@ mod MultiRouteSwap {
                     token_from: token_from_address,
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
-                    percent: 60,
+                    percent: 60 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new()
                 }
             );
@@ -829,7 +830,7 @@ mod MultiRouteSwap {
                     token_from: token_from_address,
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
-                    percent: 100,
+                    percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new()
                 }
             );
@@ -915,7 +916,7 @@ mod MultiRouteSwap {
                     token_from: token_1_address,
                     token_to: token_2_address,
                     exchange_address,
-                    percent: 100,
+                    percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 }
             );
@@ -925,7 +926,7 @@ mod MultiRouteSwap {
                     token_from: token_2_address,
                     token_to: token_2_address,
                     exchange_address,
-                    percent: 33,
+                    percent: 33 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 }
             );
@@ -935,7 +936,7 @@ mod MultiRouteSwap {
                     token_from: token_2_address,
                     token_to: token_3_address,
                     exchange_address,
-                    percent: 50,
+                    percent: 50 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 }
             );
@@ -945,7 +946,7 @@ mod MultiRouteSwap {
                     token_from: token_2_address,
                     token_to: token_4_address,
                     exchange_address,
-                    percent: 100,
+                    percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 }
             );
@@ -955,7 +956,7 @@ mod MultiRouteSwap {
                     token_from: token_3_address,
                     token_to: token_5_address,
                     exchange_address,
-                    percent: 100,
+                    percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 }
             );
@@ -965,7 +966,7 @@ mod MultiRouteSwap {
                     token_from: token_4_address,
                     token_to: token_5_address,
                     exchange_address,
-                    percent: 100,
+                    percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 }
             );
@@ -1069,7 +1070,7 @@ mod MultiRouteSwap {
                     token_from: token_from_address,
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
-                    percent: 101,
+                    percent: 101 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new()
                 }
             );
@@ -1112,7 +1113,7 @@ mod MultiRouteSwap {
                     token_from: token_from_address,
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
-                    percent: 0,
+                    percent: 0 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new()
                 }
             );
@@ -1157,7 +1158,7 @@ mod MultiRouteSwap {
                     token_from: token_from_address_2,
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
-                    percent: 100,
+                    percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new()
                 }
             );
@@ -1204,7 +1205,7 @@ mod MultiRouteSwap {
                     token_from: token_1_address,
                     token_to: token_2_address,
                     exchange_address,
-                    percent: 100,
+                    percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 }
             );
@@ -1214,7 +1215,7 @@ mod MultiRouteSwap {
                     token_from: token_2_address,
                     token_to: token_2_address,
                     exchange_address,
-                    percent: 33,
+                    percent: 33 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 }
             );
@@ -1224,7 +1225,7 @@ mod MultiRouteSwap {
                     token_from: token_2_address,
                     token_to: token_3_address,
                     exchange_address,
-                    percent: 50,
+                    percent: 50 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 }
             );
@@ -1234,7 +1235,7 @@ mod MultiRouteSwap {
                     token_from: token_2_address,
                     token_to: token_4_address,
                     exchange_address,
-                    percent: 100,
+                    percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 }
             );
@@ -1244,7 +1245,7 @@ mod MultiRouteSwap {
                     token_from: token_3_address,
                     token_to: token_5_address,
                     exchange_address,
-                    percent: 100,
+                    percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 }
             );
@@ -1254,7 +1255,7 @@ mod MultiRouteSwap {
                     token_from: token_4_address,
                     token_to: token_3_address,
                     exchange_address,
-                    percent: 100,
+                    percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 }
             );
@@ -1297,7 +1298,7 @@ mod MultiRouteSwap {
                     token_from: token_from_address,
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x10>(),
-                    percent: 100,
+                    percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new()
                 }
             );
@@ -1340,7 +1341,7 @@ mod MultiRouteSwap {
                     token_from: token_from_address,
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
-                    percent: 100,
+                    percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new()
                 }
             );
@@ -1383,7 +1384,7 @@ mod MultiRouteSwap {
                     token_from: token_from_address,
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
-                    percent: 100,
+                    percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new()
                 }
             );
@@ -1408,7 +1409,7 @@ mod SwapExactTokenTo {
     use avnu::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
     use avnu_tests::mocks::mock_erc20::MockERC20::Transfer;
     use super::{
-        Exchange, IExchangeDispatcher, ContractAddress, deploy_exchange, deploy_mock_token, IExchangeDispatcherTrait,
+        ROUTE_PERCENT_FACTOR, Exchange, IExchangeDispatcher, ContractAddress, deploy_exchange, deploy_mock_token, IExchangeDispatcherTrait,
         contract_address_const, Route, set_contract_address, pop_log_raw, Swap, Event, OwnershipTransferred, contract_address_to_felt252
     };
 
@@ -1449,7 +1450,7 @@ mod SwapExactTokenTo {
                     token_from: token_from_address,
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
-                    percent: 100,
+                    percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new()
                 }
             );
@@ -1522,7 +1523,7 @@ mod SwapExactTokenTo {
                     token_from: token_from_address,
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
-                    percent: 100,
+                    percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new()
                 }
             );
@@ -1590,7 +1591,7 @@ mod SwapExactTokenTo {
                     token_from: token_from_address,
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
-                    percent: 40,
+                    percent: 40 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new()
                 }
             );
@@ -1625,7 +1626,7 @@ mod SwapExactTokenTo {
                     token_from: token_from_address,
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
-                    percent: 100,
+                    percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new()
                 }
             );
@@ -1660,7 +1661,7 @@ mod SwapExactTokenTo {
                     token_from: token_from_address,
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
-                    percent: 100,
+                    percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new()
                 }
             );
@@ -1695,7 +1696,7 @@ mod SwapExactTokenTo {
                     token_from: token_from_address,
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
-                    percent: 100,
+                    percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new()
                 }
             );
@@ -1734,7 +1735,7 @@ mod SwapExactTokenTo {
                     token_from: token_from_address,
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
-                    percent: 100,
+                    percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new()
                 }
             );
@@ -1795,7 +1796,7 @@ mod SwapExactTokenTo {
                     token_from: token_from_address_2,
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
-                    percent: 100,
+                    percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new()
                 }
             );
@@ -1834,7 +1835,7 @@ mod SwapExactTokenTo {
                     token_from: token_1_address,
                     token_to: token_2_address,
                     exchange_address,
-                    percent: 100,
+                    percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 }
             );
@@ -1844,7 +1845,7 @@ mod SwapExactTokenTo {
                     token_from: token_2_address,
                     token_to: token_2_address,
                     exchange_address,
-                    percent: 33,
+                    percent: 33 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 }
             );
@@ -1854,7 +1855,7 @@ mod SwapExactTokenTo {
                     token_from: token_2_address,
                     token_to: token_3_address,
                     exchange_address,
-                    percent: 50,
+                    percent: 50 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 }
             );
@@ -1864,7 +1865,7 @@ mod SwapExactTokenTo {
                     token_from: token_2_address,
                     token_to: token_4_address,
                     exchange_address,
-                    percent: 100,
+                    percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 }
             );
@@ -1874,7 +1875,7 @@ mod SwapExactTokenTo {
                     token_from: token_3_address,
                     token_to: token_5_address,
                     exchange_address,
-                    percent: 100,
+                    percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 }
             );
@@ -1884,7 +1885,7 @@ mod SwapExactTokenTo {
                     token_from: token_4_address,
                     token_to: token_3_address,
                     exchange_address,
-                    percent: 100,
+                    percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 }
             );
@@ -1919,7 +1920,7 @@ mod SwapExactTokenTo {
                     token_from: token_from_address,
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
-                    percent: 100,
+                    percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new()
                 }
             );
@@ -1954,7 +1955,7 @@ mod SwapExactTokenTo {
                     token_from: token_from_address,
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
-                    percent: 100,
+                    percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new()
                 }
             );

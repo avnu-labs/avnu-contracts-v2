@@ -53,6 +53,8 @@ mod Exchange {
     use starknet::{SyscallResultTrait, replace_class_syscall, ContractAddress, ClassHash, get_caller_address, get_contract_address};
     use super::IExchange;
 
+    // 100 * 10 ** 10 => (10 decimals)
+    const MAX_ROUTE_PERCENT: u128 = 1000000000000;
     const MAX_AVNU_FEES_BPS: u128 = 100;
     const MAX_INTEGRATOR_FEES_BPS: u128 = 500;
 
@@ -500,11 +502,11 @@ mod Exchange {
             let route: Route = routes.pop_front().unwrap();
 
             // Calculating tokens to be passed to the exchange
-            // percentage should be 2 for 2%
+            // percentage should be 2 * 10**10 for 2%
             assert(route.percent > 0, 'Invalid route percent');
-            assert(route.percent <= 100, 'Invalid route percent');
+            assert(route.percent <= MAX_ROUTE_PERCENT, 'Invalid route percent');
             let token_from_balance = IERC20Dispatcher { contract_address: route.token_from }.balanceOf(contract_address);
-            let (token_from_amount, overflows) = muldiv(token_from_balance, route.percent.into(), 100_u256, false);
+            let (token_from_amount, overflows) = muldiv(token_from_balance, route.percent.into(), MAX_ROUTE_PERCENT.into(), false);
             assert(overflows == false, 'Overflow: Invalid percent');
 
             // Get adapter class hash
