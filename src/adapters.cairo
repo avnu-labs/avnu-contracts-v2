@@ -1,5 +1,6 @@
 mod ekubo_adapter;
 mod haiko_adapter;
+mod haiko_replicating_solver_adapter;
 mod jediswap_adapter;
 mod myswap_adapter;
 mod myswapv2_adapter;
