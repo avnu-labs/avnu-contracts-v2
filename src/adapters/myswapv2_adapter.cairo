@@ -1,29 +1,29 @@
 use starknet::ContractAddress;
 
 #[derive(Copy, Drop, Serde, PartialEq)]
-struct SwapResult {
+pub struct SwapResult {
     amount_in: u256,
     zero_for_one: bool,
     amount_out: u256,
-    exact_input: bool
+    exact_input: bool,
 }
 
 #[starknet::interface]
-trait IMySwapV2Router<TContractState> {
+pub trait IMySwapV2Router<TContractState> {
     fn current_sqrt_price(self: @TContractState, pool_key: felt252) -> u256;
     fn token0(self: @TContractState, pool_key: felt252) -> ContractAddress;
     fn swap(
-        self: @TContractState, pool_key: felt252, zero_for_one: bool, amount: u256, exact_input: bool, sqrt_price_limit_x96: u256
+        self: @TContractState, pool_key: felt252, zero_for_one: bool, amount: u256, exact_input: bool, sqrt_price_limit_x96: u256,
     ) -> SwapResult;
 }
 
 #[starknet::contract]
-mod MyswapV2Adapter {
+pub mod MyswapV2Adapter {
     use avnu::adapters::ISwapAdapter;
     use avnu::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
     use avnu::math::sqrt_ratio::compute_sqrt_ratio_limit;
     use starknet::ContractAddress;
-    use super::{IMySwapV2RouterDispatcher, IMySwapV2RouterDispatcherTrait, SwapResult};
+    use super::{IMySwapV2RouterDispatcher, IMySwapV2RouterDispatcherTrait};
 
     // 4295128739 + 1
     const MIN_SQRT_RATIO: u256 = 4295128740;

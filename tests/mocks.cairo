@@ -1,2 +1,2 @@
-mod mock_amm;
-mod mock_erc20;
+pub mod mock_amm;
+pub mod mock_erc20;

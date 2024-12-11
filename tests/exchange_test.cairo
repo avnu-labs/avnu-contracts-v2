@@ -1,16 +1,17 @@
-use avnu::exchange::Exchange::{Swap, Event, OwnershipTransferred};
-use avnu::exchange::{Exchange, IExchangeDispatcher, IExchangeDispatcherTrait};
+use avnu::exchange::Exchange::Swap;
+use avnu::exchange::{IExchangeDispatcher, IExchangeDispatcherTrait};
 use avnu::models::Route;
-use avnu_tests::helper::{deploy_exchange, deploy_mock_token};
-use starknet::testing::{set_contract_address, pop_log_raw};
-use starknet::{contract_address_to_felt252, ClassHash, ContractAddress, contract_address_const, class_hash_const};
+use starknet::class_hash::class_hash_const;
+use starknet::testing::{pop_log_raw, set_contract_address};
+use starknet::{ClassHash, ContractAddress, contract_address_const};
+use super::helper::{deploy_exchange, deploy_mock_token};
 const ROUTE_PERCENT_FACTOR: u128 = 10000000000;
+use super::mocks::mock_erc20::MockERC20::Transfer;
 
 mod GetOwner {
-    use super::{deploy_exchange, IExchangeDispatcherTrait, contract_address_const};
+    use super::{IExchangeDispatcherTrait, contract_address_const, deploy_exchange};
 
     #[test]
-    #[available_gas(2000000)]
     fn should_return_owner() {
         // Given
         let exchange = deploy_exchange();
@@ -25,10 +26,9 @@ mod GetOwner {
 }
 
 mod TransferOwnership {
-    use super::{deploy_exchange, IExchangeDispatcherTrait, contract_address_const, set_contract_address};
+    use super::{IExchangeDispatcherTrait, contract_address_const, deploy_exchange, set_contract_address};
 
     #[test]
-    #[available_gas(2000000)]
     fn should_change_owner() {
         // Given
         let exchange = deploy_exchange();
@@ -45,7 +45,6 @@ mod TransferOwnership {
     }
 
     #[test]
-    #[available_gas(2000000)]
     #[should_panic(expected: ('Caller is not the owner', 'ENTRYPOINT_FAILED'))]
     fn should_fail_when_caller_is_not_the_owner() {
         // Given
@@ -58,7 +57,6 @@ mod TransferOwnership {
     }
 
     #[test]
-    #[available_gas(2000000)]
     #[should_panic(expected: ('New owner is the zero address', 'ENTRYPOINT_FAILED'))]
     fn should_fail_when_owner_is_0() {
         // Given
@@ -72,7 +70,7 @@ mod TransferOwnership {
 }
 
 mod UpgradeClass {
-    use super::{deploy_exchange, ClassHash, IExchangeDispatcherTrait, class_hash_const, set_contract_address, contract_address_const};
+    use super::{ClassHash, IExchangeDispatcherTrait, class_hash_const, contract_address_const, deploy_exchange, set_contract_address};
 
     #[starknet::contract]
     mod TestContract {
@@ -81,7 +79,6 @@ mod UpgradeClass {
     }
 
     #[test]
-    #[available_gas(2000000)]
     fn should_upgrade_class() {
         // Given
         let exchange = deploy_exchange();
@@ -96,7 +93,6 @@ mod UpgradeClass {
     }
 
     #[test]
-    #[available_gas(2000000)]
     #[should_panic(expected: ('Caller is not the owner', 'ENTRYPOINT_FAILED'))]
     fn should_fail_when_caller_is_not_the_owner() {
         // Given
@@ -110,10 +106,9 @@ mod UpgradeClass {
 }
 
 mod GetAdapterClassHash {
-    use super::{deploy_exchange, IExchangeDispatcherTrait, contract_address_const, class_hash_const};
+    use super::{IExchangeDispatcherTrait, class_hash_const, contract_address_const, deploy_exchange};
 
     #[test]
-    #[available_gas(2000000)]
     fn should_return_adapter_class_hash() {
         // Given
         let exchange = deploy_exchange();
@@ -129,10 +124,9 @@ mod GetAdapterClassHash {
 }
 
 mod SetAdapterClassHash {
-    use super::{deploy_exchange, IExchangeDispatcherTrait, contract_address_const, class_hash_const, set_contract_address};
+    use super::{IExchangeDispatcherTrait, class_hash_const, contract_address_const, deploy_exchange, set_contract_address};
 
     #[test]
-    #[available_gas(2000000)]
     fn should_set_adapter_class() {
         // Given
         let exchange = deploy_exchange();
@@ -150,7 +144,6 @@ mod SetAdapterClassHash {
     }
 
     #[test]
-    #[available_gas(2000000)]
     #[should_panic(expected: ('Caller is not the owner', 'ENTRYPOINT_FAILED'))]
     fn should_fail_when_caller_is_not_the_owner() {
         // Given
@@ -165,10 +158,9 @@ mod SetAdapterClassHash {
 }
 
 mod GetFeesActive {
-    use super::{deploy_exchange, IExchangeDispatcherTrait};
+    use super::{IExchangeDispatcherTrait, deploy_exchange};
 
     #[test]
-    #[available_gas(2000000)]
     fn should_return_a_bool() {
         // Given
         let exchange = deploy_exchange();
@@ -182,10 +174,9 @@ mod GetFeesActive {
 }
 
 mod SetFeesActive {
-    use super::{deploy_exchange, IExchangeDispatcherTrait, contract_address_const, set_contract_address};
+    use super::{IExchangeDispatcherTrait, contract_address_const, deploy_exchange, set_contract_address};
 
     #[test]
-    #[available_gas(2000000)]
     fn should_set_fees_active() {
         // Given
         let exchange = deploy_exchange();
@@ -201,7 +192,6 @@ mod SetFeesActive {
     }
 
     #[test]
-    #[available_gas(2000000)]
     #[should_panic(expected: ('Caller is not the owner', 'ENTRYPOINT_FAILED'))]
     fn should_fail_when_caller_is_not_the_owner() {
         // Given
@@ -214,10 +204,9 @@ mod SetFeesActive {
 }
 
 mod GetFeesRecipient {
-    use super::{deploy_exchange, IExchangeDispatcherTrait, contract_address_const};
+    use super::{IExchangeDispatcherTrait, contract_address_const, deploy_exchange};
 
     #[test]
-    #[available_gas(2000000)]
     fn should_return_recipient() {
         // Given
         let exchange = deploy_exchange();
@@ -232,10 +221,9 @@ mod GetFeesRecipient {
 }
 
 mod SetFeesRecipient {
-    use super::{deploy_exchange, IExchangeDispatcherTrait, contract_address_const, set_contract_address};
+    use super::{IExchangeDispatcherTrait, contract_address_const, deploy_exchange, set_contract_address};
 
     #[test]
-    #[available_gas(2000000)]
     fn should_set_fees_recipient() {
         // Given
         let exchange = deploy_exchange();
@@ -252,7 +240,6 @@ mod SetFeesRecipient {
     }
 
     #[test]
-    #[available_gas(2000000)]
     #[should_panic(expected: ('Caller is not the owner', 'ENTRYPOINT_FAILED'))]
     fn should_fail_when_caller_is_not_the_owner() {
         // Given
@@ -266,10 +253,9 @@ mod SetFeesRecipient {
 }
 
 mod GetFeesBps0 {
-    use super::{deploy_exchange, IExchangeDispatcherTrait};
+    use super::{IExchangeDispatcherTrait, deploy_exchange};
 
     #[test]
-    #[available_gas(2000000)]
     fn should_return_bps() {
         // Given
         let exchange = deploy_exchange();
@@ -283,10 +269,9 @@ mod GetFeesBps0 {
 }
 
 mod SetFeesBps0 {
-    use super::{deploy_exchange, IExchangeDispatcherTrait, contract_address_const, set_contract_address};
+    use super::{IExchangeDispatcherTrait, contract_address_const, deploy_exchange, set_contract_address};
 
     #[test]
-    #[available_gas(2000000)]
     fn should_set_fees_bps_0() {
         // Given
         let exchange = deploy_exchange();
@@ -302,7 +287,6 @@ mod SetFeesBps0 {
     }
 
     #[test]
-    #[available_gas(2000000)]
     #[should_panic(expected: ('Fees are too high', 'ENTRYPOINT_FAILED'))]
     fn should_fail_when_fees_are_too_high() {
         // Given
@@ -314,7 +298,6 @@ mod SetFeesBps0 {
     }
 
     #[test]
-    #[available_gas(2000000)]
     #[should_panic(expected: ('Caller is not the owner', 'ENTRYPOINT_FAILED'))]
     fn should_fail_when_caller_is_not_the_owner() {
         // Given
@@ -327,10 +310,9 @@ mod SetFeesBps0 {
 }
 
 mod GetFeesBps1 {
-    use super::{deploy_exchange, IExchangeDispatcherTrait};
+    use super::{IExchangeDispatcherTrait, deploy_exchange};
 
     #[test]
-    #[available_gas(2000000)]
     fn should_return_bps() {
         // Given
         let exchange = deploy_exchange();
@@ -344,10 +326,9 @@ mod GetFeesBps1 {
 }
 
 mod SetFeesBps1 {
-    use super::{deploy_exchange, IExchangeDispatcherTrait, contract_address_const, set_contract_address,};
+    use super::{IExchangeDispatcherTrait, contract_address_const, deploy_exchange, set_contract_address};
 
     #[test]
-    #[available_gas(2000000)]
     fn should_set_fees_bps_1() {
         // Given
         let exchange = deploy_exchange();
@@ -363,7 +344,6 @@ mod SetFeesBps1 {
     }
 
     #[test]
-    #[available_gas(2000000)]
     #[should_panic(expected: ('Fees are too high', 'ENTRYPOINT_FAILED'))]
     fn should_fail_when_fees_are_too_high() {
         // Given
@@ -375,7 +355,6 @@ mod SetFeesBps1 {
     }
 
     #[test]
-    #[available_gas(2000000)]
     #[should_panic(expected: ('Caller is not the owner', 'ENTRYPOINT_FAILED'))]
     fn should_fail_when_caller_is_not_the_owner() {
         // Given
@@ -388,10 +367,9 @@ mod SetFeesBps1 {
 }
 
 mod GetSwapExactTokenToFeesBps {
-    use super::{deploy_exchange, IExchangeDispatcherTrait};
+    use super::{IExchangeDispatcherTrait, deploy_exchange};
 
     #[test]
-    #[available_gas(2000000)]
     fn should_return_bps() {
         // Given
         let exchange = deploy_exchange();
@@ -405,10 +383,9 @@ mod GetSwapExactTokenToFeesBps {
 }
 
 mod SetSwapExactTokenToFeesBps {
-    use super::{deploy_exchange, IExchangeDispatcherTrait, contract_address_const, set_contract_address,};
+    use super::{IExchangeDispatcherTrait, contract_address_const, deploy_exchange, set_contract_address};
 
     #[test]
-    #[available_gas(2000000)]
     fn should_set_swap_exact_token_to_fees_bps() {
         // Given
         let exchange = deploy_exchange();
@@ -424,7 +401,6 @@ mod SetSwapExactTokenToFeesBps {
     }
 
     #[test]
-    #[available_gas(2000000)]
     #[should_panic(expected: ('Fees are too high', 'ENTRYPOINT_FAILED'))]
     fn should_fail_when_fees_are_too_high() {
         // Given
@@ -436,7 +412,6 @@ mod SetSwapExactTokenToFeesBps {
     }
 
     #[test]
-    #[available_gas(2000000)]
     #[should_panic(expected: ('Caller is not the owner', 'ENTRYPOINT_FAILED'))]
     fn should_fail_when_caller_is_not_the_owner() {
         // Given
@@ -449,11 +424,10 @@ mod SetSwapExactTokenToFeesBps {
 }
 
 mod MultiRouteSwap {
-    use avnu::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
-    use avnu_tests::mocks::mock_erc20::MockERC20::Transfer;
+    use avnu::interfaces::erc20::IERC20DispatcherTrait;
     use super::{
-        ROUTE_PERCENT_FACTOR, Exchange, IExchangeDispatcher, ContractAddress, deploy_exchange, deploy_mock_token, IExchangeDispatcherTrait,
-        contract_address_const, Route, set_contract_address, pop_log_raw, Swap, Event, OwnershipTransferred, contract_address_to_felt252
+        ContractAddress, IExchangeDispatcher, IExchangeDispatcherTrait, ROUTE_PERCENT_FACTOR, Route, Swap, Transfer, contract_address_const,
+        deploy_exchange, deploy_mock_token, pop_log_raw, set_contract_address,
     };
 
     struct SwapScenario {
@@ -465,7 +439,7 @@ mod MultiRouteSwap {
         token_to_min_amount: u256,
         beneficiary: ContractAddress,
         routes: Array<Route>,
-        expected_event: Swap
+        expected_event: Swap,
     }
 
     #[test]
@@ -489,8 +463,8 @@ mod MultiRouteSwap {
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 100 * ROUTE_PERCENT_FACTOR,
-                    additional_swap_params: ArrayTrait::new()
-                }
+                    additional_swap_params: ArrayTrait::new(),
+                },
             );
         set_contract_address(beneficiary);
         token_from.approve(exchange.contract_address, token_from_amount);
@@ -506,7 +480,7 @@ mod MultiRouteSwap {
                 beneficiary,
                 0,
                 contract_address_const::<0x0>(),
-                routes
+                routes,
             );
 
         // Then
@@ -519,7 +493,7 @@ mod MultiRouteSwap {
             sell_amount: token_from_amount,
             buy_address: token_to_address,
             buy_amount: u256 { low: 10, high: 0 },
-            beneficiary: beneficiary
+            beneficiary: beneficiary,
         };
         assert(event == expected_event, 'invalid swap event');
         assert(pop_log_raw(exchange.contract_address).is_none(), 'no more events');
@@ -557,8 +531,8 @@ mod MultiRouteSwap {
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 40 * ROUTE_PERCENT_FACTOR,
-                    additional_swap_params: ArrayTrait::new()
-                }
+                    additional_swap_params: ArrayTrait::new(),
+                },
             );
         set_contract_address(beneficiary);
         token_from.approve(exchange.contract_address, token_from_amount);
@@ -574,7 +548,7 @@ mod MultiRouteSwap {
                 beneficiary,
                 0,
                 contract_address_const::<0x0>(),
-                routes
+                routes,
             );
     }
 
@@ -600,8 +574,8 @@ mod MultiRouteSwap {
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 100 * ROUTE_PERCENT_FACTOR,
-                    additional_swap_params: ArrayTrait::new()
-                }
+                    additional_swap_params: ArrayTrait::new(),
+                },
             );
         set_contract_address(beneficiary);
         token_from.approve(exchange.contract_address, token_from_amount);
@@ -617,7 +591,7 @@ mod MultiRouteSwap {
                 beneficiary,
                 0,
                 contract_address_const::<0x0>(),
-                routes
+                routes,
             );
     }
 
@@ -643,8 +617,8 @@ mod MultiRouteSwap {
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 100 * ROUTE_PERCENT_FACTOR,
-                    additional_swap_params: ArrayTrait::new()
-                }
+                    additional_swap_params: ArrayTrait::new(),
+                },
             );
         set_contract_address(beneficiary);
         token_from.approve(exchange.contract_address, token_from_amount);
@@ -660,7 +634,7 @@ mod MultiRouteSwap {
                 beneficiary,
                 0,
                 contract_address_const::<0x0>(),
-                routes
+                routes,
             );
     }
 
@@ -691,8 +665,8 @@ mod MultiRouteSwap {
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 100 * ROUTE_PERCENT_FACTOR,
-                    additional_swap_params: ArrayTrait::new()
-                }
+                    additional_swap_params: ArrayTrait::new(),
+                },
             );
         set_contract_address(beneficiary);
         token_from.approve(exchange.contract_address, token_from_amount);
@@ -708,7 +682,7 @@ mod MultiRouteSwap {
                 beneficiary,
                 0x64, // 1%, 100 bps
                 contract_address_const::<0x111>(),
-                routes
+                routes,
             );
 
         // Then
@@ -721,7 +695,7 @@ mod MultiRouteSwap {
             sell_amount: token_from_amount,
             buy_address: token_to_address,
             buy_amount: u256 { low: 988, high: 0 },
-            beneficiary: beneficiary
+            beneficiary: beneficiary,
         };
         assert(event == expected_event, 'invalid swap event');
         assert(pop_log_raw(exchange.contract_address).is_none(), 'no more contract events');
@@ -773,8 +747,8 @@ mod MultiRouteSwap {
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 100 * ROUTE_PERCENT_FACTOR,
-                    additional_swap_params: ArrayTrait::new()
-                }
+                    additional_swap_params: ArrayTrait::new(),
+                },
             );
         set_contract_address(beneficiary);
         token_from.approve(exchange.contract_address, token_from_amount);
@@ -790,7 +764,7 @@ mod MultiRouteSwap {
                 beneficiary,
                 600,
                 contract_address_const::<0x111>(),
-                routes
+                routes,
             );
     }
 
@@ -821,8 +795,8 @@ mod MultiRouteSwap {
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 60 * ROUTE_PERCENT_FACTOR,
-                    additional_swap_params: ArrayTrait::new()
-                }
+                    additional_swap_params: ArrayTrait::new(),
+                },
             );
         routes
             .append(
@@ -831,8 +805,8 @@ mod MultiRouteSwap {
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 100 * ROUTE_PERCENT_FACTOR,
-                    additional_swap_params: ArrayTrait::new()
-                }
+                    additional_swap_params: ArrayTrait::new(),
+                },
             );
         set_contract_address(beneficiary);
         token_from.approve(exchange.contract_address, token_from_amount);
@@ -848,7 +822,7 @@ mod MultiRouteSwap {
                 beneficiary,
                 0x64, // 1%, 100 bps
                 contract_address_const::<0x111>(),
-                routes
+                routes,
             );
 
         // Then
@@ -862,7 +836,7 @@ mod MultiRouteSwap {
             sell_amount: token_from_amount,
             buy_address: token_to_address,
             buy_amount: u256 { low: 986, high: 0 },
-            beneficiary: beneficiary
+            beneficiary: beneficiary,
         };
 
         assert(event == expected_event, 'invalid swap event');
@@ -918,7 +892,7 @@ mod MultiRouteSwap {
                     exchange_address,
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
-                }
+                },
             );
         routes
             .append(
@@ -928,7 +902,7 @@ mod MultiRouteSwap {
                     exchange_address,
                     percent: 33 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
-                }
+                },
             );
         routes
             .append(
@@ -938,7 +912,7 @@ mod MultiRouteSwap {
                     exchange_address,
                     percent: 50 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
-                }
+                },
             );
         routes
             .append(
@@ -948,7 +922,7 @@ mod MultiRouteSwap {
                     exchange_address,
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
-                }
+                },
             );
         routes
             .append(
@@ -958,7 +932,7 @@ mod MultiRouteSwap {
                     exchange_address,
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
-                }
+                },
             );
         routes
             .append(
@@ -968,7 +942,7 @@ mod MultiRouteSwap {
                     exchange_address,
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
-                }
+                },
             );
         set_contract_address(beneficiary);
         token_1.approve(exchange.contract_address, token_from_amount);
@@ -984,7 +958,7 @@ mod MultiRouteSwap {
                 beneficiary,
                 0,
                 contract_address_const::<0x0>(),
-                routes
+                routes,
             );
 
         // Then
@@ -997,7 +971,7 @@ mod MultiRouteSwap {
             sell_amount: token_from_amount,
             buy_address: token_5_address,
             buy_amount: u256 { low: 10, high: 0 },
-            beneficiary: beneficiary
+            beneficiary: beneficiary,
         };
         assert(event == expected_event, 'invalid swap event');
         assert(pop_log_raw(exchange.contract_address).is_none(), 'no more contract events');
@@ -1045,7 +1019,7 @@ mod MultiRouteSwap {
                 beneficiary,
                 0,
                 contract_address_const::<0x0>(),
-                routes
+                routes,
             );
     }
 
@@ -1071,8 +1045,8 @@ mod MultiRouteSwap {
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 101 * ROUTE_PERCENT_FACTOR,
-                    additional_swap_params: ArrayTrait::new()
-                }
+                    additional_swap_params: ArrayTrait::new(),
+                },
             );
         set_contract_address(beneficiary);
         token_from.approve(exchange.contract_address, token_from_amount);
@@ -1088,7 +1062,7 @@ mod MultiRouteSwap {
                 beneficiary,
                 0,
                 contract_address_const::<0x0>(),
-                routes
+                routes,
             );
     }
 
@@ -1114,8 +1088,8 @@ mod MultiRouteSwap {
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 0 * ROUTE_PERCENT_FACTOR,
-                    additional_swap_params: ArrayTrait::new()
-                }
+                    additional_swap_params: ArrayTrait::new(),
+                },
             );
         set_contract_address(beneficiary);
         token_from.approve(exchange.contract_address, token_from_amount);
@@ -1131,7 +1105,7 @@ mod MultiRouteSwap {
                 beneficiary,
                 0,
                 contract_address_const::<0x0>(),
-                routes
+                routes,
             );
     }
 
@@ -1159,8 +1133,8 @@ mod MultiRouteSwap {
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 100 * ROUTE_PERCENT_FACTOR,
-                    additional_swap_params: ArrayTrait::new()
-                }
+                    additional_swap_params: ArrayTrait::new(),
+                },
             );
         set_contract_address(beneficiary);
         token_from.approve(exchange.contract_address, token_from_amount);
@@ -1176,7 +1150,7 @@ mod MultiRouteSwap {
                 beneficiary,
                 0,
                 contract_address_const::<0x0>(),
-                routes
+                routes,
             );
     }
 
@@ -1207,7 +1181,7 @@ mod MultiRouteSwap {
                     exchange_address,
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
-                }
+                },
             );
         routes
             .append(
@@ -1217,7 +1191,7 @@ mod MultiRouteSwap {
                     exchange_address,
                     percent: 33 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
-                }
+                },
             );
         routes
             .append(
@@ -1227,7 +1201,7 @@ mod MultiRouteSwap {
                     exchange_address,
                     percent: 50 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
-                }
+                },
             );
         routes
             .append(
@@ -1237,7 +1211,7 @@ mod MultiRouteSwap {
                     exchange_address,
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
-                }
+                },
             );
         routes
             .append(
@@ -1247,7 +1221,7 @@ mod MultiRouteSwap {
                     exchange_address,
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
-                }
+                },
             );
         routes
             .append(
@@ -1257,7 +1231,7 @@ mod MultiRouteSwap {
                     exchange_address,
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
-                }
+                },
             );
         set_contract_address(beneficiary);
         token_1.approve(exchange.contract_address, token_from_amount);
@@ -1273,7 +1247,7 @@ mod MultiRouteSwap {
                 beneficiary,
                 0,
                 contract_address_const::<0x0>(),
-                routes
+                routes,
             );
     }
 
@@ -1299,8 +1273,8 @@ mod MultiRouteSwap {
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x10>(),
                     percent: 100 * ROUTE_PERCENT_FACTOR,
-                    additional_swap_params: ArrayTrait::new()
-                }
+                    additional_swap_params: ArrayTrait::new(),
+                },
             );
         set_contract_address(beneficiary);
         token_from.approve(exchange.contract_address, token_from_amount);
@@ -1316,7 +1290,7 @@ mod MultiRouteSwap {
                 beneficiary,
                 0,
                 contract_address_const::<0x0>(),
-                routes
+                routes,
             );
     }
 
@@ -1342,8 +1316,8 @@ mod MultiRouteSwap {
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 100 * ROUTE_PERCENT_FACTOR,
-                    additional_swap_params: ArrayTrait::new()
-                }
+                    additional_swap_params: ArrayTrait::new(),
+                },
             );
         set_contract_address(beneficiary);
         token_from.approve(exchange.contract_address, token_from_amount);
@@ -1359,7 +1333,7 @@ mod MultiRouteSwap {
                 beneficiary,
                 0,
                 contract_address_const::<0x0>(),
-                routes
+                routes,
             );
     }
 
@@ -1385,8 +1359,8 @@ mod MultiRouteSwap {
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 100 * ROUTE_PERCENT_FACTOR,
-                    additional_swap_params: ArrayTrait::new()
-                }
+                    additional_swap_params: ArrayTrait::new(),
+                },
             );
 
         // When & Then
@@ -1400,17 +1374,16 @@ mod MultiRouteSwap {
                 beneficiary,
                 0,
                 contract_address_const::<0x0>(),
-                routes
+                routes,
             );
     }
 }
 
 mod SwapExactTokenTo {
-    use avnu::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
-    use avnu_tests::mocks::mock_erc20::MockERC20::Transfer;
+    use avnu::interfaces::erc20::IERC20DispatcherTrait;
     use super::{
-        ROUTE_PERCENT_FACTOR, Exchange, IExchangeDispatcher, ContractAddress, deploy_exchange, deploy_mock_token, IExchangeDispatcherTrait,
-        contract_address_const, Route, set_contract_address, pop_log_raw, Swap, Event, OwnershipTransferred, contract_address_to_felt252
+        ContractAddress, IExchangeDispatcher, IExchangeDispatcherTrait, ROUTE_PERCENT_FACTOR, Route, Swap, Transfer, contract_address_const,
+        deploy_exchange, deploy_mock_token, pop_log_raw, set_contract_address,
     };
 
     struct SwapScenario {
@@ -1422,7 +1395,7 @@ mod SwapExactTokenTo {
         token_to_min_amount: u256,
         beneficiary: ContractAddress,
         routes: Array<Route>,
-        expected_event: Swap
+        expected_event: Swap,
     }
 
     #[test]
@@ -1451,8 +1424,8 @@ mod SwapExactTokenTo {
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 100 * ROUTE_PERCENT_FACTOR,
-                    additional_swap_params: ArrayTrait::new()
-                }
+                    additional_swap_params: ArrayTrait::new(),
+                },
             );
         set_contract_address(beneficiary);
         token_from.approve(exchange.contract_address, token_from_max_amount);
@@ -1460,7 +1433,7 @@ mod SwapExactTokenTo {
         // When
         let result = exchange
             .swap_exact_token_to(
-                token_from_address, token_from_amount, token_from_max_amount, token_to_address, token_to_amount, beneficiary, routes
+                token_from_address, token_from_amount, token_from_max_amount, token_to_address, token_to_amount, beneficiary, routes,
             );
 
         // Then
@@ -1473,7 +1446,7 @@ mod SwapExactTokenTo {
             sell_amount: 100050,
             buy_address: token_to_address,
             buy_amount: token_to_amount,
-            beneficiary: beneficiary
+            beneficiary: beneficiary,
         };
         assert(event == expected_event, 'invalid swap event');
         assert(pop_log_raw(exchange.contract_address).is_none(), 'no more events');
@@ -1524,8 +1497,8 @@ mod SwapExactTokenTo {
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 100 * ROUTE_PERCENT_FACTOR,
-                    additional_swap_params: ArrayTrait::new()
-                }
+                    additional_swap_params: ArrayTrait::new(),
+                },
             );
         set_contract_address(beneficiary);
         token_from.approve(exchange.contract_address, token_from_max_amount);
@@ -1533,7 +1506,7 @@ mod SwapExactTokenTo {
         // When
         let result = exchange
             .swap_exact_token_to(
-                token_from_address, token_from_amount, token_from_max_amount, token_to_address, token_to_amount, beneficiary, routes
+                token_from_address, token_from_amount, token_from_max_amount, token_to_address, token_to_amount, beneficiary, routes,
             );
 
         // Then
@@ -1546,7 +1519,7 @@ mod SwapExactTokenTo {
             sell_amount: 100000,
             buy_address: token_to_address,
             buy_amount: token_to_amount,
-            beneficiary: beneficiary
+            beneficiary: beneficiary,
         };
         assert(event == expected_event, 'invalid swap event');
         assert(pop_log_raw(exchange.contract_address).is_none(), 'no more events');
@@ -1592,8 +1565,8 @@ mod SwapExactTokenTo {
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 40 * ROUTE_PERCENT_FACTOR,
-                    additional_swap_params: ArrayTrait::new()
-                }
+                    additional_swap_params: ArrayTrait::new(),
+                },
             );
         set_contract_address(beneficiary);
         token_from.approve(exchange.contract_address, token_from_max_amount);
@@ -1601,7 +1574,7 @@ mod SwapExactTokenTo {
         // When
         exchange
             .swap_exact_token_to(
-                token_from_address, token_from_amount, token_from_max_amount, token_to_address, token_to_amount, beneficiary, routes
+                token_from_address, token_from_amount, token_from_max_amount, token_to_address, token_to_amount, beneficiary, routes,
             );
     }
 
@@ -1627,8 +1600,8 @@ mod SwapExactTokenTo {
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 100 * ROUTE_PERCENT_FACTOR,
-                    additional_swap_params: ArrayTrait::new()
-                }
+                    additional_swap_params: ArrayTrait::new(),
+                },
             );
         set_contract_address(beneficiary);
         token_from.approve(exchange.contract_address, token_from_max_amount);
@@ -1636,7 +1609,7 @@ mod SwapExactTokenTo {
         // When & Then
         exchange
             .swap_exact_token_to(
-                token_from_address, token_from_amount, token_from_max_amount, token_to_address, token_to_amount, beneficiary, routes
+                token_from_address, token_from_amount, token_from_max_amount, token_to_address, token_to_amount, beneficiary, routes,
             );
     }
 
@@ -1662,8 +1635,8 @@ mod SwapExactTokenTo {
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 100 * ROUTE_PERCENT_FACTOR,
-                    additional_swap_params: ArrayTrait::new()
-                }
+                    additional_swap_params: ArrayTrait::new(),
+                },
             );
         set_contract_address(beneficiary);
         token_from.approve(exchange.contract_address, token_from_max_amount);
@@ -1671,7 +1644,7 @@ mod SwapExactTokenTo {
         // When & Then
         exchange
             .swap_exact_token_to(
-                token_from_address, token_from_amount, token_from_max_amount, token_to_address, token_to_amount, beneficiary, routes
+                token_from_address, token_from_amount, token_from_max_amount, token_to_address, token_to_amount, beneficiary, routes,
             );
     }
 
@@ -1697,8 +1670,8 @@ mod SwapExactTokenTo {
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 100 * ROUTE_PERCENT_FACTOR,
-                    additional_swap_params: ArrayTrait::new()
-                }
+                    additional_swap_params: ArrayTrait::new(),
+                },
             );
         set_contract_address(beneficiary);
         token_from.approve(exchange.contract_address, token_from_max_amount);
@@ -1706,7 +1679,7 @@ mod SwapExactTokenTo {
         // When & Then
         exchange
             .swap_exact_token_to(
-                token_from_address, token_from_amount, token_from_max_amount, token_to_address, token_to_amount, beneficiary, routes
+                token_from_address, token_from_amount, token_from_max_amount, token_to_address, token_to_amount, beneficiary, routes,
             );
     }
 
@@ -1736,8 +1709,8 @@ mod SwapExactTokenTo {
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 100 * ROUTE_PERCENT_FACTOR,
-                    additional_swap_params: ArrayTrait::new()
-                }
+                    additional_swap_params: ArrayTrait::new(),
+                },
             );
         set_contract_address(beneficiary);
         token_from.approve(exchange.contract_address, token_from_max_amount);
@@ -1745,7 +1718,7 @@ mod SwapExactTokenTo {
         // When & Then
         exchange
             .swap_exact_token_to(
-                token_from_address, token_from_amount, token_from_max_amount, token_to_address, token_to_amount, beneficiary, routes
+                token_from_address, token_from_amount, token_from_max_amount, token_to_address, token_to_amount, beneficiary, routes,
             );
     }
 
@@ -1770,7 +1743,7 @@ mod SwapExactTokenTo {
         // When & Then
         exchange
             .swap_exact_token_to(
-                token_from_address, token_from_amount, token_from_max_amount, token_to_address, token_to_amount, beneficiary, routes
+                token_from_address, token_from_amount, token_from_max_amount, token_to_address, token_to_amount, beneficiary, routes,
             );
     }
 
@@ -1797,8 +1770,8 @@ mod SwapExactTokenTo {
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 100 * ROUTE_PERCENT_FACTOR,
-                    additional_swap_params: ArrayTrait::new()
-                }
+                    additional_swap_params: ArrayTrait::new(),
+                },
             );
         set_contract_address(beneficiary);
         token_from.approve(exchange.contract_address, token_from_max_amount);
@@ -1806,7 +1779,7 @@ mod SwapExactTokenTo {
         // When & Then
         exchange
             .swap_exact_token_to(
-                token_from_address, token_from_amount, token_from_max_amount, token_to_address, token_to_amount, beneficiary, routes
+                token_from_address, token_from_amount, token_from_max_amount, token_to_address, token_to_amount, beneficiary, routes,
             );
     }
 
@@ -1837,7 +1810,7 @@ mod SwapExactTokenTo {
                     exchange_address,
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
-                }
+                },
             );
         routes
             .append(
@@ -1847,7 +1820,7 @@ mod SwapExactTokenTo {
                     exchange_address,
                     percent: 33 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
-                }
+                },
             );
         routes
             .append(
@@ -1857,7 +1830,7 @@ mod SwapExactTokenTo {
                     exchange_address,
                     percent: 50 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
-                }
+                },
             );
         routes
             .append(
@@ -1867,7 +1840,7 @@ mod SwapExactTokenTo {
                     exchange_address,
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
-                }
+                },
             );
         routes
             .append(
@@ -1877,7 +1850,7 @@ mod SwapExactTokenTo {
                     exchange_address,
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
-                }
+                },
             );
         routes
             .append(
@@ -1887,7 +1860,7 @@ mod SwapExactTokenTo {
                     exchange_address,
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
-                }
+                },
             );
         set_contract_address(beneficiary);
         token_1.approve(exchange.contract_address, token_from_max_amount);
@@ -1895,7 +1868,7 @@ mod SwapExactTokenTo {
         // When & Then
         exchange
             .swap_exact_token_to(
-                token_1_address, token_from_amount, token_from_max_amount, token_5_address, token_to_amount, beneficiary, routes
+                token_1_address, token_from_amount, token_from_max_amount, token_5_address, token_to_amount, beneficiary, routes,
             );
     }
 
@@ -1921,8 +1894,8 @@ mod SwapExactTokenTo {
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 100 * ROUTE_PERCENT_FACTOR,
-                    additional_swap_params: ArrayTrait::new()
-                }
+                    additional_swap_params: ArrayTrait::new(),
+                },
             );
         set_contract_address(beneficiary);
         token_from.approve(exchange.contract_address, token_from_max_amount);
@@ -1930,7 +1903,7 @@ mod SwapExactTokenTo {
         // When & Then
         exchange
             .swap_exact_token_to(
-                token_from_address, token_from_amount, token_from_max_amount, token_to_address, token_to_amount, beneficiary, routes
+                token_from_address, token_from_amount, token_from_max_amount, token_to_address, token_to_amount, beneficiary, routes,
             );
     }
 
@@ -1956,14 +1929,14 @@ mod SwapExactTokenTo {
                     token_to: token_to_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 100 * ROUTE_PERCENT_FACTOR,
-                    additional_swap_params: ArrayTrait::new()
-                }
+                    additional_swap_params: ArrayTrait::new(),
+                },
             );
 
         // When & Then
         exchange
             .swap_exact_token_to(
-                token_from_address, token_from_amount, token_from_max_amount, token_to_address, token_to_amount, beneficiary, routes
+                token_from_address, token_from_amount, token_from_max_amount, token_to_address, token_to_amount, beneficiary, routes,
             );
     }
 }

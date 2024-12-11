@@ -1,9 +1,11 @@
-#[starknet::contract]
-mod MockEkubo {
-    use avnu::adapters::ekubo_adapter::{IEkuboRouter, PoolPrice, CallPoints, Delta, PoolKey, SwapParameters, i129};
-    use starknet::contract_address_const;
+use super::mock_erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
 
-    use starknet::{ContractAddress, get_caller_address};
+#[starknet::contract]
+pub mod MockEkubo {
+    use avnu::adapters::ekubo_adapter::{Delta, IEkuboRouter, PoolKey, PoolPrice, SwapParameters, i129};
+
+    use starknet::ContractAddress;
+    use starknet::contract_address_const;
 
     #[storage]
     struct Storage {}
@@ -22,7 +24,7 @@ mod MockEkubo {
             ArrayTrait::new()
         }
         fn get_pool_price(self: @ContractState, pool_key: PoolKey) -> PoolPrice {
-            PoolPrice { sqrt_ratio: 0, tick: i129 { mag: 0, sign: false }, }
+            PoolPrice { sqrt_ratio: 0, tick: i129 { mag: 0, sign: false } }
         }
         fn withdraw(ref self: ContractState, token_address: ContractAddress, recipient: ContractAddress, amount: u128) {}
         fn pay(ref self: ContractState, token_address: ContractAddress) {}
@@ -30,11 +32,11 @@ mod MockEkubo {
 }
 
 #[starknet::contract]
-mod MockJediSwap {
+pub mod MockJediSwap {
     use avnu::adapters::jediswap_adapter::IJediSwapRouter;
-    use starknet::contract_address_const;
 
-    use starknet::{ContractAddress, get_caller_address};
+    use starknet::ContractAddress;
+    use starknet::contract_address_const;
 
     #[storage]
     struct Storage {}
@@ -42,7 +44,7 @@ mod MockJediSwap {
     #[abi(embed_v0)]
     impl MockERC20Impl of IJediSwapRouter<ContractState> {
         fn swap_exact_tokens_for_tokens(
-            self: @ContractState, amountIn: u256, amountOutMin: u256, path: Array<ContractAddress>, to: ContractAddress, deadline: u64
+            self: @ContractState, amountIn: u256, amountOutMin: u256, path: Array<ContractAddress>, to: ContractAddress, deadline: u64,
         ) -> Array<u256> {
             assert(amountIn == u256 { low: 1, high: 0 }, 'invalid amountIn');
             assert(amountOutMin == u256 { low: 2, high: 0 }, 'invalid amountOutMin');
@@ -56,11 +58,9 @@ mod MockJediSwap {
 }
 
 #[starknet::contract]
-mod MockMySwap {
+pub mod MockMySwap {
     use avnu::adapters::myswap_adapter::IMySwapRouter;
-    use starknet::contract_address_const;
-
-    use starknet::{ContractAddress, get_caller_address};
+    use starknet::ContractAddress;
 
     #[storage]
     struct Storage {}
@@ -77,11 +77,11 @@ mod MockMySwap {
 }
 
 #[starknet::contract]
-mod MockSithSwap {
+pub mod MockSithSwap {
     use avnu::adapters::sithswap_adapter::{ISithSwapRouter, Route};
-    use starknet::contract_address_const;
 
-    use starknet::{ContractAddress, get_caller_address};
+    use starknet::ContractAddress;
+    use starknet::contract_address_const;
 
     #[storage]
     struct Storage {}
@@ -104,11 +104,10 @@ mod MockSithSwap {
 }
 
 #[starknet::contract]
-mod MockTenkSwap {
-    use avnu::adapters::tenkswap_adapter::{ITenkSwapRouter, Route};
+pub mod MockTenkSwap {
+    use avnu::adapters::tenkswap_adapter::ITenkSwapRouter;
+    use starknet::ContractAddress;
     use starknet::contract_address_const;
-
-    use starknet::{ContractAddress, get_caller_address};
 
     #[storage]
     struct Storage {}
@@ -116,7 +115,7 @@ mod MockTenkSwap {
     #[abi(embed_v0)]
     impl MockERC20Impl of ITenkSwapRouter<ContractState> {
         fn swapExactTokensForTokens(
-            self: @ContractState, amountIn: u256, amountOutMin: u256, path: Array<ContractAddress>, to: ContractAddress, deadline: u64
+            self: @ContractState, amountIn: u256, amountOutMin: u256, path: Array<ContractAddress>, to: ContractAddress, deadline: u64,
         ) -> Array<u256> {
             assert(amountIn == u256 { low: 1, high: 0 }, 'invalid amountIn');
             assert(amountOutMin == u256 { low: 2, high: 0 }, 'invalid amountOutMin');
@@ -130,10 +129,10 @@ mod MockTenkSwap {
 }
 
 #[starknet::contract]
-mod MockSwapAdapter {
+pub mod MockSwapAdapter {
     use avnu::adapters::ISwapAdapter;
-    use avnu_tests::mocks::mock_erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
     use starknet::{ContractAddress, get_contract_address};
+    use super::{IERC20Dispatcher, IERC20DispatcherTrait};
 
     #[storage]
     struct Storage {}

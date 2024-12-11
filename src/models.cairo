@@ -1,10 +1,10 @@
 use starknet::ContractAddress;
 
 #[derive(Drop, Serde, Clone)]
-struct Route {
-    token_from: ContractAddress,
-    token_to: ContractAddress,
-    exchange_address: ContractAddress,
-    percent: u128,
-    additional_swap_params: Array<felt252>,
+pub struct Route {
+    pub token_from: ContractAddress,
+    pub token_to: ContractAddress,
+    pub exchange_address: ContractAddress,
+    pub percent: u128,
+    pub additional_swap_params: Array<felt252>,
 }

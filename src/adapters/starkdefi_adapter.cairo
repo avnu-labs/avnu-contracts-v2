@@ -9,18 +9,18 @@ struct SwapPath {
 }
 
 #[starknet::interface]
-trait IStarkDefiRouter<TContractState> {
+pub trait IStarkDefiRouter<TContractState> {
     fn swap_exact_tokens_for_tokens(
-        self: @TContractState, amountIn: u256, amountOutMin: u256, path: Array<SwapPath>, to: ContractAddress, deadline: u64
+        self: @TContractState, amountIn: u256, amountOutMin: u256, path: Array<SwapPath>, to: ContractAddress, deadline: u64,
     ) -> Array<u256>;
 }
 
 #[starknet::contract]
-mod StarkDefiAdapter {
+pub mod StarkDefiAdapter {
     use avnu::adapters::ISwapAdapter;
     use avnu::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
-    use starknet::{get_block_timestamp, ContractAddress};
-    use super::{SwapPath, IStarkDefiRouterDispatcher, IStarkDefiRouterDispatcherTrait};
+    use starknet::{ContractAddress, get_block_timestamp};
+    use super::{IStarkDefiRouterDispatcher, IStarkDefiRouterDispatcherTrait, SwapPath};
 
     #[storage]
     struct Storage {}

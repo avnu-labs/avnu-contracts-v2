@@ -1,17 +1,17 @@
 use starknet::ContractAddress;
 
 #[starknet::interface]
-trait INostraRouter<TContractState> {
+pub trait INostraRouter<TContractState> {
     fn swap_exact_tokens_for_tokens(
-        self: @TContractState, amount_in: u256, amount_out_min: u256, path: Span<ContractAddress>, to: ContractAddress, deadline: u64
+        self: @TContractState, amount_in: u256, amount_out_min: u256, path: Span<ContractAddress>, to: ContractAddress, deadline: u64,
     ) -> Array<u256>;
 }
 
 #[starknet::contract]
-mod NostraAdapter {
+pub mod NostraAdapter {
     use avnu::adapters::ISwapAdapter;
     use avnu::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
-    use starknet::{get_block_timestamp, ContractAddress};
+    use starknet::{ContractAddress, get_block_timestamp};
     use super::{INostraRouterDispatcher, INostraRouterDispatcherTrait};
 
     #[storage]

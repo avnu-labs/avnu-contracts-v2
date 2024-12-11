@@ -1,15 +1,13 @@
-use starknet::ContractAddress;
-
 #[derive(Copy, Drop, Serde, PartialEq)]
 struct SwapResult {
     amount_in: u256,
     zero_for_one: bool,
     amount_out: u256,
-    exact_input: bool
+    exact_input: bool,
 }
 
 #[starknet::interface]
-trait IHaikoRouter<TContractState> {
+pub trait IHaikoRouter<TContractState> {
     fn curr_sqrt_price(self: @TContractState, market_id: felt252) -> u256;
     fn base_token(self: @TContractState, market_id: felt252) -> felt252;
     fn swap(
@@ -20,17 +18,17 @@ trait IHaikoRouter<TContractState> {
         exact_input: bool,
         threshold_sqrt_price: Option<u256>,
         threshold_amount: Option<u256>,
-        deadline: Option<u64>
+        deadline: Option<u64>,
     ) -> SwapResult;
 }
 
 #[starknet::contract]
-mod HaikoAdapter {
+pub mod HaikoAdapter {
     use avnu::adapters::ISwapAdapter;
     use avnu::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
     use avnu::math::sqrt_ratio::compute_sqrt_ratio_limit;
-    use starknet::{get_block_timestamp, ContractAddress};
-    use super::{IHaikoRouterDispatcher, IHaikoRouterDispatcherTrait, SwapResult};
+    use starknet::{ContractAddress, get_block_timestamp};
+    use super::{IHaikoRouterDispatcher, IHaikoRouterDispatcherTrait};
 
     const MIN_SQRT_RATIO: u256 = 67774731328;
     const MAX_SQRT_RATIO: u256 = 1475476155217232889259591669213284373330197463;

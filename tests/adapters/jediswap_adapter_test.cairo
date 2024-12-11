@@ -1,10 +1,12 @@
+use crate::helper::{deploy_jediswap_adapter, deploy_mock_jediswap, deploy_mock_token};
+
+
 mod Swap {
     use avnu::adapters::ISwapAdapterDispatcherTrait;
-    use avnu_tests::helper::{deploy_mock_jediswap, deploy_mock_token, deploy_jediswap_adapter};
     use starknet::{contract_address_const, get_caller_address};
+    use super::{deploy_jediswap_adapter, deploy_mock_jediswap, deploy_mock_token};
 
     #[test]
-    #[available_gas(2000000)]
     fn should_call_jediswap() {
         // Given
         let adapter = deploy_jediswap_adapter();
@@ -25,12 +27,11 @@ mod Swap {
                 to,
                 additional_params,
             );
-    // Then
+        // Then
     // TODO: verify calls
     }
 
     #[test]
-    #[available_gas(2000000)]
     #[should_panic(expected: ('Invalid swap params', 'ENTRYPOINT_FAILED'))]
     fn should_fail_when_invalid_additional_swap_params() {
         // Given

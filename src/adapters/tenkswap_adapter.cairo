@@ -1,25 +1,24 @@
 use starknet::ContractAddress;
 
 #[derive(Drop, Serde)]
-struct Route {
-    from_address: ContractAddress,
-    to_address: ContractAddress,
-    stable: felt252,
+pub struct Route {
+    pub from_address: ContractAddress,
+    pub to_address: ContractAddress,
+    pub stable: felt252,
 }
 
 #[starknet::interface]
-trait ITenkSwapRouter<TContractState> {
+pub trait ITenkSwapRouter<TContractState> {
     fn swapExactTokensForTokens(
-        self: @TContractState, amountIn: u256, amountOutMin: u256, path: Array<ContractAddress>, to: ContractAddress, deadline: u64
+        self: @TContractState, amountIn: u256, amountOutMin: u256, path: Array<ContractAddress>, to: ContractAddress, deadline: u64,
     ) -> Array<u256>;
 }
 
 #[starknet::contract]
-mod TenkswapAdapter {
+pub mod TenkswapAdapter {
     use avnu::adapters::ISwapAdapter;
     use avnu::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
-    use starknet::{get_block_timestamp, ContractAddress};
-    use super::Route;
+    use starknet::{ContractAddress, get_block_timestamp};
     use super::{ITenkSwapRouterDispatcher, ITenkSwapRouterDispatcherTrait};
 
     #[storage]

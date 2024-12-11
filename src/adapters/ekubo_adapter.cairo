@@ -1,9 +1,9 @@
 use starknet::ContractAddress;
 
 #[derive(Copy, Drop, Serde)]
-struct i129 {
-    mag: u128,
-    sign: bool,
+pub struct i129 {
+    pub mag: u128,
+    pub sign: bool,
 }
 
 #[inline(always)]
@@ -22,39 +22,39 @@ impl i129PartialEq of PartialEq<i129> {
 }
 
 #[derive(Copy, Drop, Serde)]
-struct PoolKey {
-    token0: ContractAddress,
-    token1: ContractAddress,
-    fee: u128,
-    tick_spacing: u128,
-    extension: ContractAddress,
+pub struct PoolKey {
+    pub token0: ContractAddress,
+    pub token1: ContractAddress,
+    pub fee: u128,
+    pub tick_spacing: u128,
+    pub extension: ContractAddress,
 }
 
 #[derive(Copy, Drop, Serde)]
-struct SwapParameters {
-    amount: i129,
-    is_token1: bool,
-    sqrt_ratio_limit: u256,
-    skip_ahead: u32,
+pub struct SwapParameters {
+    pub amount: i129,
+    pub is_token1: bool,
+    pub sqrt_ratio_limit: u256,
+    pub skip_ahead: u32,
 }
 
 #[derive(Copy, Drop, Serde)]
-struct Delta {
-    amount0: i129,
-    amount1: i129,
+pub struct Delta {
+    pub amount0: i129,
+    pub amount1: i129,
 }
 
 #[derive(Copy, Drop, Serde, PartialEq)]
-struct PoolPrice {
+pub struct PoolPrice {
     // the current ratio, up to 192 bits
-    sqrt_ratio: u256,
+    pub sqrt_ratio: u256,
     // the current tick, up to 32 bits
-    tick: i129,
+    pub tick: i129,
 }
 
 // The points at which an extension should be called
 #[derive(Copy, Drop, Serde, PartialEq)]
-struct CallPoints {
+pub struct CallPoints {
     after_initialize_pool: bool,
     before_swap: bool,
     after_swap: bool,
@@ -63,7 +63,7 @@ struct CallPoints {
 }
 
 #[starknet::interface]
-trait IEkuboRouter<TContractState> {
+pub trait IEkuboRouter<TContractState> {
     fn lock(ref self: TContractState, data: Array<felt252>) -> Array<felt252>;
     fn swap(ref self: TContractState, pool_key: PoolKey, params: SwapParameters) -> Delta;
     fn withdraw(ref self: TContractState, token_address: ContractAddress, recipient: ContractAddress, amount: u128);
@@ -72,12 +72,11 @@ trait IEkuboRouter<TContractState> {
 }
 
 #[starknet::contract]
-mod EkuboAdapter {
+pub mod EkuboAdapter {
     use avnu::adapters::ISwapAdapter;
     use avnu::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
     use avnu::interfaces::locker::ISwapAfterLock;
     use avnu::math::sqrt_ratio::compute_sqrt_ratio_limit;
-    use core::integer::{u256_overflow_mul, BoundedU32};
     use starknet::ContractAddress;
     use super::{IEkuboRouterDispatcher, IEkuboRouterDispatcherTrait, PoolKey, SwapParameters, i129};
 
@@ -153,10 +152,10 @@ mod EkuboAdapter {
             assert(params.token_from_amount.high == 0, 'Overflow: Unsupported amount');
             let pool_price = ekubo.get_pool_price(params.pool_key);
             let sqrt_ratio_limit = compute_sqrt_ratio_limit(
-                pool_price.sqrt_ratio, params.sqrt_ratio_distance, is_token1, MIN_SQRT_RATIO, MAX_SQRT_RATIO
+                pool_price.sqrt_ratio, params.sqrt_ratio_distance, is_token1, MIN_SQRT_RATIO, MAX_SQRT_RATIO,
             );
             let swap_params = SwapParameters {
-                amount: i129 { mag: params.token_from_amount.low, sign: false }, is_token1, sqrt_ratio_limit, skip_ahead: 100
+                amount: i129 { mag: params.token_from_amount.low, sign: false }, is_token1, sqrt_ratio_limit, skip_ahead: 100,
             };
             let delta = ekubo.swap(params.pool_key, swap_params);
 

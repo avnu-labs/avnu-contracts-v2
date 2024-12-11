@@ -1,12 +1,12 @@
 use starknet::ContractAddress;
 
 #[starknet::interface]
-trait IMySwapRouter<TContractState> {
+pub trait IMySwapRouter<TContractState> {
     fn swap(self: @TContractState, pool_id: felt252, token_from_addr: ContractAddress, amount_from: u256, amount_to_min: u256) -> u256;
 }
 
 #[starknet::contract]
-mod MyswapAdapter {
+pub mod MyswapAdapter {
     use avnu::adapters::ISwapAdapter;
     use avnu::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
     use starknet::ContractAddress;

@@ -1,10 +1,9 @@
 mod Swap {
     use avnu::adapters::ISwapAdapterDispatcherTrait;
-    use avnu_tests::helper::{deploy_mock_sithswap, deploy_mock_token, deploy_sithswap_adapter};
+    use crate::helper::{deploy_mock_sithswap, deploy_mock_token, deploy_sithswap_adapter};
     use starknet::{contract_address_const, get_caller_address};
 
     #[test]
-    #[available_gas(2000000)]
     fn should_call_sithswap() {
         // Given
         let adapter = deploy_sithswap_adapter();
@@ -26,12 +25,11 @@ mod Swap {
                 to,
                 additional_params,
             );
-    // Then
+        // Then
     // TODO: verify calls
     }
 
     #[test]
-    #[available_gas(2000000)]
     #[should_panic(expected: ('Invalid swap params', 'ENTRYPOINT_FAILED'))]
     fn should_fail_when_invalid_additional_swap_params() {
         // Given

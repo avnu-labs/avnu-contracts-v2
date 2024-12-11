@@ -26,17 +26,17 @@ pub struct SwapAmounts {
 }
 
 #[starknet::interface]
-trait IHaikoRouter<TContractState> {
+pub trait IHaikoRouter<TContractState> {
     fn market_info(self: @TContractState, market_id: felt252) -> MarketInfo;
     fn swap(ref self: TContractState, market_id: felt252, swap_params: SwapParams) -> SwapAmounts;
 }
 
 #[starknet::contract]
-mod HaikoReplicatingSolverAdapter {
+pub mod HaikoReplicatingSolverAdapter {
     use avnu::adapters::ISwapAdapter;
     use avnu::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
-    use starknet::{get_block_timestamp, ContractAddress};
-    use super::{IHaikoRouterDispatcher, IHaikoRouterDispatcherTrait, SwapParams, MarketInfo};
+    use starknet::{ContractAddress, get_block_timestamp};
+    use super::{IHaikoRouterDispatcher, IHaikoRouterDispatcherTrait, SwapParams};
 
     #[storage]
     struct Storage {}
@@ -66,7 +66,7 @@ mod HaikoReplicatingSolverAdapter {
                 exact_input: true,
                 threshold_sqrt_price: Option::None,
                 threshold_amount: Option::None,
-                deadline: Option::Some(get_block_timestamp())
+                deadline: Option::Some(get_block_timestamp()),
             };
 
             // Approve

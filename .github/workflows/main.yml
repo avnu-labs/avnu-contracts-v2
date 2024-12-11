@@ -7,7 +7,7 @@ on:
     branches: [ main ]
 
 env:
-  SCARB_VERSION: 2.6.4
+  SCARB_VERSION: 2.9.1
 
 jobs:
   build:

@@ -1,7 +1,7 @@
 use starknet::ContractAddress;
 
 #[starknet::interface]
-trait IERC20<TStorage> {
+pub trait IERC20<TStorage> {
     fn approve(ref self: TStorage, spender: ContractAddress, amount: u256);
     fn transfer(ref self: TStorage, to: ContractAddress, amount: u256);
     fn transferFrom(ref self: TStorage, from: ContractAddress, to: ContractAddress, amount: u256);
@@ -12,33 +12,37 @@ trait IERC20<TStorage> {
 
 
 #[starknet::contract]
-mod MockERC20 {
+pub mod MockERC20 {
+    #[feature("deprecated-bounded-int-trait")]
     use core::integer::BoundedInt;
     use starknet::ContractAddress;
     use starknet::get_caller_address;
+    use starknet::storage::{StorageMapReadAccess, StorageMapWriteAccess, StoragePointerReadAccess, StoragePointerWriteAccess};
     use super::IERC20;
 
     #[storage]
-    struct Storage {
+    pub struct Storage {
         ERC20_total_supply: u256,
+        #[feature("deprecated_legacy_map")]
         ERC20_balances: LegacyMap<ContractAddress, u256>,
+        #[feature("deprecated_legacy_map")]
         ERC20_allowances: LegacyMap<(ContractAddress, ContractAddress), u256>,
     }
 
     #[event]
     #[derive(starknet::Event, Drop, PartialEq)]
-    enum Event {
+    pub enum Event {
         transfer: Transfer,
     }
 
     #[derive(Drop, starknet::Event, PartialEq)]
-    struct Transfer {
-        to: ContractAddress,
-        amount: u256,
+    pub struct Transfer {
+        pub to: ContractAddress,
+        pub amount: u256,
     }
 
     #[constructor]
-    fn constructor(ref self: ContractState, recipient: ContractAddress, initial_supply: u256,) {
+    fn constructor(ref self: ContractState, recipient: ContractAddress, initial_supply: u256) {
         self._mint(recipient, initial_supply);
     }
 

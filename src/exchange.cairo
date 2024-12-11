@@ -1,8 +1,8 @@
 use avnu::models::Route;
-use starknet::{ContractAddress, ClassHash};
+use starknet::{ClassHash, ContractAddress};
 
 #[starknet::interface]
-trait IExchange<TContractState> {
+pub trait IExchange<TContractState> {
     fn get_owner(self: @TContractState) -> ContractAddress;
     fn transfer_ownership(ref self: TContractState, new_owner: ContractAddress) -> bool;
     fn upgrade_class(ref self: TContractState, new_class_hash: ClassHash) -> bool;
@@ -43,14 +43,17 @@ trait IExchange<TContractState> {
 }
 
 #[starknet::contract]
-mod Exchange {
-    use avnu::adapters::{ISwapAdapterLibraryDispatcher, ISwapAdapterDispatcherTrait};
+pub mod Exchange {
+    use avnu::adapters::{ISwapAdapterDispatcherTrait, ISwapAdapterLibraryDispatcher};
     use avnu::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
-    use avnu::interfaces::locker::{ILocker, ISwapAfterLockLibraryDispatcher, ISwapAfterLockDispatcherTrait};
+    use avnu::interfaces::locker::{ILocker, ISwapAfterLockDispatcherTrait, ISwapAfterLockLibraryDispatcher};
     use avnu::models::Route;
     use avnu_lib::math::muldiv::muldiv;
+    use core::dict::Felt252Dict;
     use core::num::traits::Zero;
-    use starknet::{SyscallResultTrait, replace_class_syscall, ContractAddress, ClassHash, get_caller_address, get_contract_address};
+    use core::starknet::syscalls::replace_class_syscall;
+    use starknet::storage::{StorageMapReadAccess, StorageMapWriteAccess, StoragePointerReadAccess, StoragePointerWriteAccess};
+    use starknet::{ClassHash, ContractAddress, SyscallResultTrait, get_caller_address, get_contract_address};
     use super::IExchange;
 
     // 100 * 10 ** 10 => (10 decimals)
@@ -61,6 +64,7 @@ mod Exchange {
     #[storage]
     struct Storage {
         Ownable_owner: ContractAddress,
+        #[feature("deprecated_legacy_map")]
         AdapterClassHash: LegacyMap<ContractAddress, ClassHash>,
         fees_active: bool,
         fees_bps_0: u128,
@@ -71,23 +75,23 @@ mod Exchange {
 
     #[event]
     #[derive(starknet::Event, Drop, PartialEq)]
-    enum Event {
+    pub enum Event {
         Swap: Swap,
         OwnershipTransferred: OwnershipTransferred,
     }
 
     #[derive(Drop, starknet::Event, PartialEq)]
-    struct Swap {
-        taker_address: ContractAddress,
-        sell_address: ContractAddress,
-        sell_amount: u256,
-        buy_address: ContractAddress,
-        buy_amount: u256,
-        beneficiary: ContractAddress,
+    pub struct Swap {
+        pub taker_address: ContractAddress,
+        pub sell_address: ContractAddress,
+        pub sell_amount: u256,
+        pub buy_address: ContractAddress,
+        pub buy_amount: u256,
+        pub beneficiary: ContractAddress,
     }
 
     #[derive(starknet::Event, Drop, PartialEq)]
-    struct OwnershipTransferred {
+    pub struct OwnershipTransferred {
         previous_owner: ContractAddress,
         new_owner: ContractAddress,
     }
@@ -240,7 +244,7 @@ mod Exchange {
                     beneficiary,
                     integrator_fee_amount_bps,
                     integrator_fee_recipient,
-                    routes_span.len()
+                    routes_span.len(),
                 );
 
             // Dict of bools are supported yet
@@ -281,7 +285,7 @@ mod Exchange {
                     token_from_max_amount,
                     token_to,
                     token_to_amount,
-                    routes
+                    routes,
                 );
 
             // Check amount of token to and transfer tokens
@@ -306,8 +310,8 @@ mod Exchange {
                         sell_amount: token_from_amount_used,
                         buy_address: token_to_address,
                         buy_amount: token_to_amount,
-                        beneficiary: beneficiary
-                    }
+                        beneficiary: beneficiary,
+                    },
                 );
 
             // Dict of bools are supported yet
@@ -342,7 +346,7 @@ mod Exchange {
             token_from_amount: u256,
             token_to: IERC20Dispatcher,
             beneficiary: ContractAddress,
-            routes: Span<Route>
+            routes: Span<Route>,
         ) {
             // In the future, the beneficiary may not be the caller
             // Check if beneficiary == caller_address
@@ -385,7 +389,7 @@ mod Exchange {
             beneficiary: ContractAddress,
             integrator_fee_amount_bps: u128,
             integrator_fee_recipient: ContractAddress,
-            route_len: usize
+            route_len: usize,
         ) {
             // Collect fees
             let token_to_amount_received = token_to.balanceOf(contract_address);
@@ -405,8 +409,8 @@ mod Exchange {
                         sell_amount: token_from_amount,
                         buy_address: token_to.contract_address,
                         buy_amount: token_to_final_amount,
-                        beneficiary: beneficiary
-                    }
+                        beneficiary: beneficiary,
+                    },
                 );
         }
 
@@ -442,7 +446,7 @@ mod Exchange {
                 // Collect the necessary token from amount
                 let token_to_missing_amount = token_to_amount + fee_amount_target - token_to_amount_received;
                 let (token_from_amount_to_transfer, overflows) = muldiv(
-                    token_from_last_amount_used, token_to_missing_amount, token_to_last_amount_received, true
+                    token_from_last_amount_used, token_to_missing_amount, token_to_last_amount_received, true,
                 );
                 assert(overflows == false, 'Overflow: swap iteration');
                 assert(token_from_amount_to_transfer <= remaining_token_from_amount, 'Insufficient token from amount');
@@ -464,7 +468,7 @@ mod Exchange {
         }
 
         fn assert_no_remaining_tokens(
-            ref self: ContractState, contract_address: ContractAddress, mut routes: Span<Route>, mut checked_tokens: Felt252Dict<u64>
+            ref self: ContractState, contract_address: ContractAddress, mut routes: Span<Route>, mut checked_tokens: Felt252Dict<u64>,
         ) {
             if routes.len() == 0 {
                 return;
@@ -481,7 +485,10 @@ mod Exchange {
         }
 
         fn assert_no_remaining_token(
-            ref self: ContractState, contract_address: ContractAddress, token_address: ContractAddress, ref checked_tokens: Felt252Dict<u64>
+            ref self: ContractState,
+            contract_address: ContractAddress,
+            token_address: ContractAddress,
+            ref checked_tokens: Felt252Dict<u64>,
         ) {
             // Only do the check when token balance has not already been checked
             if checked_tokens.get(token_address.into()) == 0 {
@@ -534,7 +541,7 @@ mod Exchange {
             amount: u256,
             integrator_fee_amount_bps: u128,
             integrator_fee_recipient: ContractAddress,
-            route_len: usize
+            route_len: usize,
         ) -> u256 {
             // Collect integrator's fees
             assert(integrator_fee_amount_bps <= MAX_INTEGRATOR_FEES_BPS, 'Integrator fees are too high');
@@ -558,7 +565,7 @@ mod Exchange {
             amount: u256,
             fee_amount_bps: u128,
             fee_recipient: ContractAddress,
-            is_active: bool
+            is_active: bool,
         ) -> u256 {
             // Fee collector is active when recipient & amount are defined, don't throw exception for UX purpose
             // -> It's integrator work to defined it correctly
