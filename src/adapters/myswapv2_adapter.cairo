@@ -12,16 +12,14 @@ pub struct SwapResult {
 pub trait IMySwapV2Router<TContractState> {
     fn current_sqrt_price(self: @TContractState, pool_key: felt252) -> u256;
     fn token0(self: @TContractState, pool_key: felt252) -> ContractAddress;
-    fn swap(
-        self: @TContractState, pool_key: felt252, zero_for_one: bool, amount: u256, exact_input: bool, sqrt_price_limit_x96: u256,
-    ) -> SwapResult;
+    fn swap(self: @TContractState, pool_key: felt252, zero_for_one: bool, amount: u256, exact_input: bool, sqrt_price_limit_x96: u256) -> SwapResult;
 }
 
 #[starknet::contract]
 pub mod MyswapV2Adapter {
     use avnu::adapters::ISwapAdapter;
-    use avnu::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
     use avnu::math::sqrt_ratio::compute_sqrt_ratio_limit;
+    use avnu_lib::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
     use starknet::ContractAddress;
     use super::{IMySwapV2RouterDispatcher, IMySwapV2RouterDispatcherTrait};
 

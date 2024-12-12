@@ -35,7 +35,7 @@ pub mod MockERC20 {
         transfer: Transfer,
     }
 
-    #[derive(Drop, starknet::Event, PartialEq)]
+    #[derive(Debug, Drop, starknet::Event, PartialEq)]
     pub struct Transfer {
         pub to: ContractAddress,
         pub amount: u256,

@@ -8,7 +8,7 @@ pub trait IMySwapRouter<TContractState> {
 #[starknet::contract]
 pub mod MyswapAdapter {
     use avnu::adapters::ISwapAdapter;
-    use avnu::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
+    use avnu_lib::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
     use starknet::ContractAddress;
     use super::{IMySwapRouterDispatcher, IMySwapRouterDispatcherTrait};
 
@@ -30,8 +30,7 @@ pub mod MyswapAdapter {
             assert(additional_swap_params.len() == 1, 'Invalid swap params');
             let pool_id = *additional_swap_params[0];
             IERC20Dispatcher { contract_address: token_from_address }.approve(exchange_address, token_from_amount);
-            IMySwapRouterDispatcher { contract_address: exchange_address }
-                .swap(pool_id, token_from_address, token_from_amount, token_to_min_amount);
+            IMySwapRouterDispatcher { contract_address: exchange_address }.swap(pool_id, token_from_address, token_from_amount, token_to_min_amount);
         }
     }
 }

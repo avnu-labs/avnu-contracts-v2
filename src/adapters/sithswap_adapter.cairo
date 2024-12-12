@@ -17,7 +17,7 @@ pub trait ISithSwapRouter<TContractState> {
 #[starknet::contract]
 pub mod SithswapAdapter {
     use avnu::adapters::ISwapAdapter;
-    use avnu::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
+    use avnu_lib::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
     use starknet::{ContractAddress, get_block_timestamp};
     use super::Route;
     use super::{ISithSwapRouterDispatcher, ISithSwapRouterDispatcherTrait};
@@ -40,9 +40,7 @@ pub mod SithswapAdapter {
             assert(additional_swap_params.len() == 1, 'Invalid swap params');
 
             // Init routes
-            let routes = array![
-                Route { from_address: token_from_address, to_address: token_to_address, stable: *additional_swap_params[0] },
-            ];
+            let routes = array![Route { from_address: token_from_address, to_address: token_to_address, stable: *additional_swap_params[0] }];
 
             // Init deadline
             let block_timestamp = get_block_timestamp();

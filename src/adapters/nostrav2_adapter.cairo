@@ -16,7 +16,7 @@ pub trait INostraV2Router<TContractState> {
 #[starknet::contract]
 pub mod NostraV2Adapter {
     use avnu::adapters::ISwapAdapter;
-    use avnu::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
+    use avnu_lib::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
     use starknet::{ContractAddress, get_block_timestamp};
     use super::{INostraV2RouterDispatcher, INostraV2RouterDispatcherTrait};
 

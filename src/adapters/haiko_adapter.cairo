@@ -25,8 +25,8 @@ pub trait IHaikoRouter<TContractState> {
 #[starknet::contract]
 pub mod HaikoAdapter {
     use avnu::adapters::ISwapAdapter;
-    use avnu::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
     use avnu::math::sqrt_ratio::compute_sqrt_ratio_limit;
+    use avnu_lib::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
     use starknet::{ContractAddress, get_block_timestamp};
     use super::{IHaikoRouterDispatcher, IHaikoRouterDispatcherTrait};
 

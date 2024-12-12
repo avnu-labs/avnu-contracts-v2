@@ -17,7 +17,7 @@ pub trait ITenkSwapRouter<TContractState> {
 #[starknet::contract]
 pub mod TenkswapAdapter {
     use avnu::adapters::ISwapAdapter;
-    use avnu::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
+    use avnu_lib::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
     use starknet::{ContractAddress, get_block_timestamp};
     use super::{ITenkSwapRouterDispatcher, ITenkSwapRouterDispatcherTrait};
 

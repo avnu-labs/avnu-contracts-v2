@@ -74,9 +74,9 @@ pub trait IEkuboRouter<TContractState> {
 #[starknet::contract]
 pub mod EkuboAdapter {
     use avnu::adapters::ISwapAdapter;
-    use avnu::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
     use avnu::interfaces::locker::ISwapAfterLock;
     use avnu::math::sqrt_ratio::compute_sqrt_ratio_limit;
+    use avnu_lib::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
     use starknet::ContractAddress;
     use super::{IEkuboRouterDispatcher, IEkuboRouterDispatcherTrait, PoolKey, SwapParameters, i129};
 
