@@ -13,6 +13,7 @@ use starknet::testing::{pop_log_raw, set_contract_address};
 use starknet::{ClassHash, ContractAddress, contract_address_const};
 use super::mocks::mock_amm::{MockEkubo, MockJediSwap, MockMySwap, MockSithSwap, MockSwapAdapter, MockTenkSwap};
 use super::mocks::mock_erc20::MockERC20;
+use super::mocks::old_exchange::{IOldExchangeDispatcher, IOldExchangeDispatcherTrait, OldExchange};
 
 pub fn deploy_mock_token(recipient: ContractAddress, balance: felt252, salt: felt252) -> IERC20Dispatcher {
     let mut constructor_args: Array<felt252> = ArrayTrait::new();
@@ -26,7 +27,7 @@ pub fn deploy_mock_token(recipient: ContractAddress, balance: felt252, salt: fel
 
 pub fn deploy_exchange() -> (IExchangeDispatcher, IOwnableDispatcher, IFeeDispatcher) {
     let owner = contract_address_const::<0x1>();
-    let constructor_args: Array<felt252> = array![0x1, 0x2, 0, 0];
+    let constructor_args: Array<felt252> = array![0x1, 0x2, 0, 0, 0];
     let (address, _) = deploy_syscall(Exchange::TEST_CLASS_HASH.try_into().unwrap(), 0, constructor_args.span(), false)
         .expect('exchange deploy failed');
     let dispatcher = IExchangeDispatcher { contract_address: address };
@@ -37,6 +38,21 @@ pub fn deploy_exchange() -> (IExchangeDispatcher, IOwnableDispatcher, IFeeDispat
     let _ = pop_log_raw(address);
     assert(pop_log_raw(address).is_none(), 'no more events');
     (dispatcher, IOwnableDispatcher { contract_address: address }, IFeeDispatcher { contract_address: address })
+}
+
+pub fn deploy_old_exchange() -> (IOldExchangeDispatcher, ContractAddress) {
+    let owner = contract_address_const::<0x1>();
+    let constructor_args: Array<felt252> = array![0x1, 0x2];
+    let (address, _) = deploy_syscall(OldExchange::TEST_CLASS_HASH.try_into().unwrap(), 0, constructor_args.span(), false)
+        .expect('exchange deploy failed');
+    let dispatcher = IOldExchangeDispatcher { contract_address: address };
+    set_contract_address(owner);
+    let adapter_class_hash = declare_mock_swap_adapter();
+    dispatcher.set_adapter_class_hash(contract_address_const::<0x12>(), adapter_class_hash);
+    dispatcher.set_adapter_class_hash(contract_address_const::<0x11>(), adapter_class_hash);
+    let _ = pop_log_raw(address);
+    assert(pop_log_raw(address).is_none(), 'no more events');
+    (dispatcher, address)
 }
 
 pub fn declare_mock_swap_adapter() -> ClassHash {

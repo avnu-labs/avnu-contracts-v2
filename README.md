@@ -29,28 +29,42 @@ This contract implements the following components:
 Here is the interface of the contract:
 
 ```cairo
+
 #[starknet::interface]
-trait IExchange<TContractState> {
-    // Ownable entrypoints
+pub trait IOwnable<TContractState> {
+
+    // Ownable entry points
     fn get_owner(self: @TContractState) -> ContractAddress;
     fn transfer_ownership(ref self: TContractState, new_owner: ContractAddress);
-    
-   // Upgradable entrypoints
-   fn upgrade_class(ref self: TContractState, new_class_hash: ClassHash);
-    
+}
+
+#[starknet::interface]
+pub trait IUpgradable<TContractState> {
+
+    // Upgradeable entry point
+    fn upgrade_class(ref self: TContractState, new_class_hash: ClassHash);
+}
+
+#[starknet::interface]
+pub trait IFee<TContractState> {
+
     // Fees entrypoints
     fn get_fees_recipient(self: @TContractState) -> ContractAddress;
     fn set_fees_recipient(ref self: TContractState, fees_recipient: ContractAddress) -> bool;
-    fn get_fees_bps(self: @TContractState) -> u128;
-    fn set_fees_bps(ref self: TContractState, bps: u128) -> bool;
+    fn get_fees_bps_0(self: @TContractState) -> u128;
+    fn set_fees_bps_0(ref self: TContractState, bps: u128) -> bool;
+    fn get_fees_bps_1(self: @TContractState) -> u128;
+    fn set_fees_bps_1(ref self: TContractState, bps: u128) -> bool;
     fn get_swap_exact_token_to_fees_bps(self: @TContractState) -> u128;
     fn set_swap_exact_token_to_fees_bps(ref self: TContractState, bps: u128) -> bool;
     fn get_token_fee_config(self: @TContractState, token: ContractAddress) -> TokenFeeConfig;
     fn set_token_fee_config(ref self: TContractState, token: ContractAddress, config: TokenFeeConfig) -> bool;
-    fn get_pair_specific_fees(self: @TContractState, token_a: ContractAddress, token_b: ContractAddress) -> Option<u128>;
-    fn set_pair_specific_fees(ref self: TContractState, token_a: ContractAddress, token_b: ContractAddress, fee_bps: Option<u128>) -> bool;
     fn is_integrator_whitelisted(self: @TContractState, integrator: ContractAddress) -> bool;
     fn set_whitelisted_integrator(ref self: TContractState, integrator: ContractAddress, whitelisted: bool) -> bool;
+}
+
+#[starknet::interface]
+trait IExchange<TContractState> {
     
     // Exchange entrypoints
     fn get_adapter_class_hash(self: @TContractState, exchange_address: ContractAddress) -> ClassHash;
@@ -79,18 +93,18 @@ trait IExchange<TContractState> {
     ) -> bool;
 }
 ```
+The Exchange contract exposes the external/view functions of IOwnable, IUpgradeable and IFee publicly.
 
 ### Fee component
 
-This component provides a flexible framework for managing fees in token swaps. Fees can be configured globally, for specific tokens, or for specific token pairs.
+This component provides a flexible framework for managing fees in token swaps. 
 
 The component includes the following definitions:
 - `fees_recipient`: The address designated to receive the collected fees.
-- `fees_bps`: The default fee rate in basis points (bps).
+- `fees_bps_0`: The fee rate in basis points (bps) for routes with length = 1
+- `fees_bps_1`: The fee rate in basis points (bps) for routes with length > 1
 - `token_fees`: Configuration for a specific token address. It specifies:
   - The weight (used to determine whether fees are taken on the buy or sell side).
-  - Specific fee rates in bps for buying or selling. The lowest fee rate is applied.
-- `pair_specific_fees`: Fee rates in bps defined for specific token pairs.
 - `whitelisted_integrators`: A list of integrators exempted from certain fees.
 - `swap_exact_token_to_fees_bps`: The fee rate in bps for the swap_exact_token_to entrypoint.
 
@@ -101,23 +115,9 @@ The component includes the following definitions:
 First, the fee configurations for both the sell token and the buy token are retrieved to determine their respective weights. 
 This helps decide whether to apply fees on the sell token or the buy token.
 
-2. Check for Pair-Specific Fees
+2. Fee is calculated based on the route complexity (len)
 
-If a fee is defined for the specific token pair, it takes precedence. 
-For instance, a 0% fee might be configured for the USDC/USDT pair.
-
-3. Evaluate Token-Specific Fees
-
-If no pair-specific fee is defined, the system checks the configurations for the sell and buy tokens individually. 
-Token configurations may specify distinct fees for selling or buying the token.
-
-Example: Fees might be waived when buying vSTRK but applied when selling it.
-
-If no specific buy or sell fee is defined for the token, the default fee rate is used.
-
-Between the sell token's fee and the buy token's fee, the lower rate is applied.
-
-4. Check for Whitelisted Integrators
+3. Check for Whitelisted Integrators
 
 If the integrator is whitelisted and its fees exceed the calculated fee, no fee is applied.
 

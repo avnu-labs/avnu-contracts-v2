@@ -2,17 +2,22 @@ use avnu::models::Route;
 use starknet::{ClassHash, ContractAddress};
 
 #[starknet::interface]
-pub trait IExchange<TContractState> {
-    fn initialize(
-        ref self: TContractState,
-        owner: ContractAddress,
-        fee_recipient: ContractAddress,
-        fees_bps_0: u128,
-        fees_bps_1: u128,
-        swap_exact_token_to_fees_bps: u128,
-    );
+pub trait IOldExchange<TContractState> {
+    fn get_owner(self: @TContractState) -> ContractAddress;
+    fn transfer_ownership(ref self: TContractState, new_owner: ContractAddress) -> bool;
+    fn upgrade_class(ref self: TContractState, new_class_hash: ClassHash) -> bool;
     fn get_adapter_class_hash(self: @TContractState, exchange_address: ContractAddress) -> ClassHash;
     fn set_adapter_class_hash(ref self: TContractState, exchange_address: ContractAddress, adapter_class_hash: ClassHash) -> bool;
+    fn get_fees_active(self: @TContractState) -> bool;
+    fn set_fees_active(ref self: TContractState, active: bool) -> bool;
+    fn get_fees_recipient(self: @TContractState) -> ContractAddress;
+    fn set_fees_recipient(ref self: TContractState, recipient: ContractAddress) -> bool;
+    fn get_fees_bps_0(self: @TContractState) -> u128;
+    fn set_fees_bps_0(ref self: TContractState, bps: u128) -> bool;
+    fn get_fees_bps_1(self: @TContractState) -> u128;
+    fn set_fees_bps_1(ref self: TContractState, bps: u128) -> bool;
+    fn get_swap_exact_token_to_fees_bps(self: @TContractState) -> u128;
+    fn set_swap_exact_token_to_fees_bps(ref self: TContractState, bps: u128) -> bool;
     fn multi_route_swap(
         ref self: TContractState,
         token_from_address: ContractAddress,
@@ -38,61 +43,41 @@ pub trait IExchange<TContractState> {
 }
 
 #[starknet::contract]
-pub mod Exchange {
+pub mod OldExchange {
     use avnu::adapters::{ISwapAdapterDispatcherTrait, ISwapAdapterLibraryDispatcher};
-    use avnu::components::fee::{FeeComponent, FeePolicy};
     use avnu::interfaces::locker::{ILocker, ISwapAfterLockDispatcherTrait, ISwapAfterLockLibraryDispatcher};
     use avnu::models::Route;
-    use avnu_lib::components::ownable::OwnableComponent;
-    use avnu_lib::components::upgradable::UpgradableComponent;
     use avnu_lib::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
     use avnu_lib::math::muldiv::muldiv;
     use core::dict::Felt252Dict;
     use core::num::traits::Zero;
-    use starknet::storage::{StorageMapReadAccess, StorageMapWriteAccess};
-    use starknet::{ClassHash, ContractAddress, get_caller_address, get_contract_address};
-    use super::IExchange;
+    use core::starknet::syscalls::replace_class_syscall;
+    use starknet::storage::{StorageMapReadAccess, StorageMapWriteAccess, StoragePointerReadAccess, StoragePointerWriteAccess};
+    use starknet::{ClassHash, ContractAddress, SyscallResultTrait, get_caller_address, get_contract_address};
+    use super::IOldExchange;
 
     // 100 * 10 ** 10 => (10 decimals)
     const MAX_ROUTE_PERCENT: u128 = 1000000000000;
-
-    component!(path: FeeComponent, storage: fee, event: FeeEvent);
-    component!(path: OwnableComponent, storage: ownable, event: OwnableEvent);
-    component!(path: UpgradableComponent, storage: upgradable, event: UpgradableEvent);
-
-    #[abi(embed_v0)]
-    impl FeeImpl = FeeComponent::FeeImpl<ContractState>;
-    impl FeeInternalImpl = FeeComponent::FeeInternalImpl<ContractState>;
-
-    #[abi(embed_v0)]
-    impl OwnableImpl = OwnableComponent::OwnableImpl<ContractState>;
-    impl OwnableInternalImpl = OwnableComponent::OwnableInternalImpl<ContractState>;
-
-    #[abi(embed_v0)]
-    impl UpgradableImpl = UpgradableComponent::UpgradableImpl<ContractState>;
+    const MAX_AVNU_FEES_BPS: u128 = 100;
+    const MAX_INTEGRATOR_FEES_BPS: u128 = 500;
 
     #[storage]
     struct Storage {
-        #[substorage(v0)]
-        fee: FeeComponent::Storage,
-        #[substorage(v0)]
-        ownable: OwnableComponent::Storage,
-        #[substorage(v0)]
-        upgradable: UpgradableComponent::Storage,
+        Ownable_owner: ContractAddress,
         #[feature("deprecated_legacy_map")]
         AdapterClassHash: LegacyMap<ContractAddress, ClassHash>,
+        fees_active: bool,
+        fees_bps_0: u128,
+        fees_bps_1: u128,
+        swap_exact_token_to_fees_bps: u128,
+        fees_recipient: ContractAddress,
     }
 
     #[event]
     #[derive(starknet::Event, Drop, PartialEq)]
     pub enum Event {
-        #[flat]
-        FeeEvent: FeeComponent::Event,
-        #[flat]
-        OwnableEvent: OwnableComponent::Event,
-        #[flat]
-        UpgradableEvent: UpgradableComponent::Event,
         Swap: Swap,
+        OwnershipTransferred: OwnershipTransferred,
     }
 
     #[derive(Drop, starknet::Event, PartialEq)]
@@ -103,6 +88,12 @@ pub mod Exchange {
         pub buy_address: ContractAddress,
         pub buy_amount: u256,
         pub beneficiary: ContractAddress,
+    }
+
+    #[derive(starknet::Event, Drop, PartialEq)]
+    pub struct OwnershipTransferred {
+        previous_owner: ContractAddress,
+        new_owner: ContractAddress,
     }
 
     #[abi(embed_v0)]
@@ -129,37 +120,29 @@ pub mod Exchange {
     }
 
     #[constructor]
-    fn constructor(
-        ref self: ContractState,
-        owner: ContractAddress,
-        fee_recipient: ContractAddress,
-        fees_bps_0: u128,
-        fees_bps_1: u128,
-        swap_exact_token_to_fees_bps: u128,
-    ) {
-        self.initialize(owner, fee_recipient, fees_bps_0, fees_bps_1, swap_exact_token_to_fees_bps);
+    fn constructor(ref self: ContractState, owner: ContractAddress, fee_recipient: ContractAddress) {
+        // Set owner & fee collector address
+        self._transfer_ownership(owner);
+        self.fees_recipient.write(fee_recipient)
     }
 
     #[abi(embed_v0)]
-    impl Exchange of IExchange<ContractState> {
-        // This is a public function meant to be called in a single multicall transaction right after the call to upgrade_class
-        // It is guaranteed to run just once and hence is not gated behind assert_only_owner
-        // This allows us to deploy a clean final contract in one go
-        fn initialize(
-            ref self: ContractState,
-            owner: ContractAddress,
-            fee_recipient: ContractAddress,
-            fees_bps_0: u128,
-            fees_bps_1: u128,
-            swap_exact_token_to_fees_bps: u128,
-        ) {
-            // Due to this call to ownable.initialize, this initialize function inside Exchange contract
-            // is guaranteed to run just once
-            self.ownable.initialize(owner);
+    impl OldExchange of IOldExchange<ContractState> {
+        fn get_owner(self: @ContractState) -> ContractAddress {
+            self.Ownable_owner.read()
+        }
 
-            // Not strictly required for migration - keeping it here for completeness since we have call to initialize in
-            // the constructor
-            self.fee.initialize(fee_recipient, fees_bps_0, fees_bps_1, swap_exact_token_to_fees_bps);
+        fn transfer_ownership(ref self: ContractState, new_owner: ContractAddress) -> bool {
+            self.assert_only_owner();
+            assert(!new_owner.is_zero(), 'New owner is the zero address');
+            self._transfer_ownership(new_owner);
+            true
+        }
+
+        fn upgrade_class(ref self: ContractState, new_class_hash: ClassHash) -> bool {
+            self.assert_only_owner();
+            replace_class_syscall(new_class_hash).unwrap_syscall();
+            true
         }
 
         fn get_adapter_class_hash(self: @ContractState, exchange_address: ContractAddress) -> ClassHash {
@@ -167,8 +150,61 @@ pub mod Exchange {
         }
 
         fn set_adapter_class_hash(ref self: ContractState, exchange_address: ContractAddress, adapter_class_hash: ClassHash) -> bool {
-            self.ownable.assert_only_owner();
+            self.assert_only_owner();
             self.AdapterClassHash.write(exchange_address, adapter_class_hash);
+            true
+        }
+
+        fn get_fees_active(self: @ContractState) -> bool {
+            self.fees_active.read()
+        }
+
+        fn set_fees_active(ref self: ContractState, active: bool) -> bool {
+            self.assert_only_owner();
+            self.fees_active.write(active);
+            true
+        }
+
+        fn get_fees_recipient(self: @ContractState) -> ContractAddress {
+            self.fees_recipient.read()
+        }
+
+        fn set_fees_recipient(ref self: ContractState, recipient: ContractAddress) -> bool {
+            self.assert_only_owner();
+            self.fees_recipient.write(recipient);
+            true
+        }
+
+        fn get_fees_bps_0(self: @ContractState) -> u128 {
+            self.fees_bps_0.read()
+        }
+
+        fn set_fees_bps_0(ref self: ContractState, bps: u128) -> bool {
+            self.assert_only_owner();
+            assert(bps <= MAX_AVNU_FEES_BPS, 'Fees are too high');
+            self.fees_bps_0.write(bps);
+            true
+        }
+
+        fn get_fees_bps_1(self: @ContractState) -> u128 {
+            self.fees_bps_1.read()
+        }
+
+        fn set_fees_bps_1(ref self: ContractState, bps: u128) -> bool {
+            self.assert_only_owner();
+            assert(bps <= MAX_AVNU_FEES_BPS, 'Fees are too high');
+            self.fees_bps_1.write(bps);
+            true
+        }
+
+        fn get_swap_exact_token_to_fees_bps(self: @ContractState) -> u128 {
+            self.swap_exact_token_to_fees_bps.read()
+        }
+
+        fn set_swap_exact_token_to_fees_bps(ref self: ContractState, bps: u128) -> bool {
+            self.assert_only_owner();
+            assert(bps <= MAX_AVNU_FEES_BPS, 'Fees are too high');
+            self.swap_exact_token_to_fees_bps.write(bps);
             true
         }
 
@@ -193,50 +229,29 @@ pub mod Exchange {
             // Execute all the pre-swap actions (some checks, retrieve token from...)
             self.before_swap(contract_address, caller_address, token_from, token_from_amount, token_to, beneficiary, routes_span);
 
-            // We retrieve the fee policy and our fee amount in bps
-            let (fee_policy, fees_bps) = self
-                .fee
-                .get_fees(token_from_address, token_to_address, integrator_fee_recipient, integrator_fee_amount_bps, routes.len());
-            // If fee policy is FeeOnSell, we collect the fees now
-            if fee_policy == FeePolicy::FeeOnSell {
-                self.fee.collect_fees(token_from, token_from_amount, fees_bps, integrator_fee_recipient, integrator_fee_amount_bps);
-            }
-
             // Swap
             self.apply_routes(routes, contract_address);
 
-            // If fee policy is FeeOnBuy, we collect the fees now
-            let token_to_final_amount = match fee_policy {
-                FeePolicy::FeeOnBuy => {
-                    let token_to_amount_received = token_to.balanceOf(contract_address);
-                    self.fee.collect_fees(token_to, token_to_amount_received, fees_bps, integrator_fee_recipient, integrator_fee_amount_bps)
-                },
-                _ => token_to.balanceOf(contract_address),
-            };
-
-            // Check amount of token to and transfer tokens
-            assert(token_to_min_amount <= token_to_final_amount, 'Insufficient tokens received');
-            token_to.transfer(beneficiary, token_to_final_amount);
+            // Execute all the post-swap actions (verify min amount, collect fees, transfer tokens, emit event...)
+            self
+                .after_swap(
+                    contract_address,
+                    caller_address,
+                    token_from,
+                    token_from_amount,
+                    token_to,
+                    token_to_min_amount,
+                    beneficiary,
+                    integrator_fee_amount_bps,
+                    integrator_fee_recipient,
+                    routes_span.len(),
+                );
 
             // Dict of bools are supported yet
             let mut checked_tokens: Felt252Dict<u64> = Default::default();
             // Token to has already been checked
             checked_tokens.insert(token_to_address.into(), 1);
             self.assert_no_remaining_tokens(contract_address, routes_span, checked_tokens);
-
-            // Emit event
-            self
-                .emit(
-                    Swap {
-                        taker_address: caller_address,
-                        sell_address: token_from.contract_address,
-                        sell_amount: token_from_amount,
-                        buy_address: token_to.contract_address,
-                        buy_amount: token_to_final_amount,
-                        beneficiary: beneficiary,
-                    },
-                );
-
             true
         }
 
@@ -273,7 +288,8 @@ pub mod Exchange {
             // Collect fees
             let fees_amount = token_to_amount_received - token_to_amount;
             if (fees_amount > 0) {
-                let fees_recipient = self.fee.get_fees_recipient();
+                assert(self.get_fees_active(), 'Fees are not active');
+                let fees_recipient = self.get_fees_recipient();
                 assert(!fees_recipient.is_zero(), 'Fee recipient is empty');
                 token_to.transfer(fees_recipient, fees_amount);
             }
@@ -302,6 +318,19 @@ pub mod Exchange {
 
     #[generate_trait]
     impl Internal of InternalTrait {
+        fn assert_only_owner(self: @ContractState) {
+            let owner = self.get_owner();
+            let caller = get_caller_address();
+            assert(!caller.is_zero(), 'Caller is the zero address');
+            assert(caller == owner, 'Caller is not the owner');
+        }
+
+        fn _transfer_ownership(ref self: ContractState, new_owner: ContractAddress) {
+            let previous_owner = self.get_owner();
+            self.Ownable_owner.write(new_owner);
+            self.emit(OwnershipTransferred { previous_owner, new_owner });
+        }
+
         fn before_swap(
             ref self: ContractState,
             contract_address: ContractAddress,
@@ -342,6 +371,42 @@ pub mod Exchange {
             token_from.transferFrom(caller_address, contract_address, token_from_amount);
         }
 
+        fn after_swap(
+            ref self: ContractState,
+            contract_address: ContractAddress,
+            caller_address: ContractAddress,
+            token_from: IERC20Dispatcher,
+            token_from_amount: u256,
+            token_to: IERC20Dispatcher,
+            token_to_min_amount: u256,
+            beneficiary: ContractAddress,
+            integrator_fee_amount_bps: u128,
+            integrator_fee_recipient: ContractAddress,
+            route_len: usize,
+        ) {
+            // Collect fees
+            let token_to_amount_received = token_to.balanceOf(contract_address);
+            let token_to_final_amount = self
+                .collect_fees(token_to, token_to_amount_received, integrator_fee_amount_bps, integrator_fee_recipient, route_len);
+
+            // Check amount of token to and transfer tokens
+            assert(token_to_min_amount <= token_to_final_amount, 'Insufficient tokens received');
+            token_to.transfer(beneficiary, token_to_final_amount);
+
+            // Emit event
+            self
+                .emit(
+                    Swap {
+                        taker_address: caller_address,
+                        sell_address: token_from.contract_address,
+                        sell_amount: token_from_amount,
+                        buy_address: token_to.contract_address,
+                        buy_amount: token_to_final_amount,
+                        beneficiary: beneficiary,
+                    },
+                );
+        }
+
         fn _swap_exact_token_to(
             ref self: ContractState,
             contract_address: ContractAddress,
@@ -361,7 +426,7 @@ pub mod Exchange {
             let mut token_to_amount_received = token_to.balanceOf(contract_address);
             let mut token_to_last_amount_received = token_to_amount_received;
 
-            let target_fees_bps = self.fee.get_swap_exact_token_to_fees_bps();
+            let target_fees_bps = self.get_swap_exact_token_to_fees_bps();
             let (fee_amount_target, overflows) = muldiv(token_to_amount, target_fees_bps.into(), 10000_u256, false);
             assert(overflows == false, 'Overflow: Invalid fee');
 
@@ -450,6 +515,49 @@ pub mod Exchange {
                 .swap(route.exchange_address, route.token_from, token_from_amount, route.token_to, 0, contract_address, route.additional_swap_params);
 
             self.apply_routes(routes, contract_address);
+        }
+
+        fn collect_fees(
+            ref self: ContractState,
+            token: IERC20Dispatcher,
+            amount: u256,
+            integrator_fee_amount_bps: u128,
+            integrator_fee_recipient: ContractAddress,
+            route_len: usize,
+        ) -> u256 {
+            // Collect integrator's fees
+            assert(integrator_fee_amount_bps <= MAX_INTEGRATOR_FEES_BPS, 'Integrator fees are too high');
+            let integrator_fees_collected = self.collect_fee_bps(token, amount, integrator_fee_amount_bps, integrator_fee_recipient, true);
+
+            // Collect AVNU's fees
+            let bps = if route_len > 1 {
+                self.get_fees_bps_1()
+            } else {
+                self.get_fees_bps_0()
+            };
+            let avnu_fees_collected = self.collect_fee_bps(token, amount, bps, self.get_fees_recipient(), self.get_fees_active());
+
+            // Compute and return amount minus fees
+            amount - integrator_fees_collected - avnu_fees_collected
+        }
+
+        fn collect_fee_bps(
+            ref self: ContractState, token: IERC20Dispatcher, amount: u256, fee_amount_bps: u128, fee_recipient: ContractAddress, is_active: bool,
+        ) -> u256 {
+            // Fee collector is active when recipient & amount are defined, don't throw exception for UX purpose
+            // -> It's integrator work to defined it correctly
+            if (!fee_amount_bps.is_zero() && !fee_recipient.is_zero() && is_active) {
+                // Compute fee amount
+                let (fee_amount, overflows) = muldiv(amount, fee_amount_bps.into(), 10000_u256, false);
+                assert(overflows == false, 'Overflow: Invalid fee');
+
+                // Collect fees from contract
+                token.transfer(fee_recipient, fee_amount);
+
+                fee_amount
+            } else {
+                0
+            }
         }
     }
 }

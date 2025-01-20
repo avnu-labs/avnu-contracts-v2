@@ -1,13 +1,159 @@
 use avnu::components::fee::{FeePolicy, TokenFeeConfig};
 use avnu::components::fee::{IFeeDispatcherTrait};
-use crate::components::mocks::fee_mock::{IFeeMockDispatcher, IFeeMockDispatcherTrait};
+use crate::components::mocks::fee_mock::{IFeeMockDispatcherTrait};
 use starknet::contract_address_const;
 use starknet::testing::set_contract_address;
-use super::helper::deploy_fee;
+use super::helper::{deploy_fee, deploy_fee_with_address, deploy_fee_with_defaults, deploy_mock_token, get_common_actors};
 
 fn a_token_fee_config(weight: u32) -> TokenFeeConfig {
-    TokenFeeConfig { weight, fee_on_buy: Option::None, fee_on_sell: Option::None }
+    TokenFeeConfig { weight }
 }
+
+
+mod GetSetFeesRecipient {
+    use super::{IFeeDispatcherTrait, contract_address_const, deploy_fee, set_contract_address};
+
+    #[test]
+    fn should_set_fees_recipient() {
+        // Given
+        let fee = deploy_fee();
+        set_contract_address(contract_address_const::<'OWNER'>());
+        let fees_recipient = contract_address_const::<'NEWFEESRECIPIENT'>();
+
+        // Check pre-action state
+        assert(fee.get_fees_recipient() == contract_address_const::<'FEES_RECIPIENT'>(), 'invalid fees recipient');
+
+        // When
+        let result = fee.set_fees_recipient(fees_recipient);
+
+        // Then
+        assert(result == true, 'invalid result');
+        assert(fee.get_fees_recipient() == fees_recipient, 'invalid fees recipient');
+    }
+
+    #[test]
+    #[should_panic(expected: ('Caller is not the owner', 'ENTRYPOINT_FAILED'))]
+    fn set_fees_recipient_should_fail_for_unauthorized_access() {
+        let fee = deploy_fee();
+        set_contract_address(contract_address_const::<'NOT_OWNER'>());
+        fee.set_fees_recipient(contract_address_const::<'MALICIOUS_ACTOR'>());
+    }
+}
+mod GetSetFeeBps {
+    use super::{IFeeDispatcherTrait, contract_address_const, deploy_fee, set_contract_address};
+
+    #[test]
+    fn should_set_fees_bps_0() {
+        // Given
+        let fee = deploy_fee();
+        set_contract_address(contract_address_const::<'OWNER'>());
+
+        // When
+        let result = fee.set_fees_bps_0(10);
+
+        // Then
+        assert(result == true, 'invalid result');
+        assert(fee.get_fees_bps_0() == 10, 'invalid fee bps 0');
+    }
+
+    #[test]
+    fn should_set_fees_bps_1() {
+        // Given
+        let fee = deploy_fee();
+        set_contract_address(contract_address_const::<'OWNER'>());
+
+        // When
+        let result = fee.set_fees_bps_1(10);
+
+        // Then
+        assert(result == true, 'invalid result');
+        assert(fee.get_fees_bps_0() == 0, 'invalid fee bps 0');
+        assert(fee.get_fees_bps_1() == 10, 'invalid fee bps 1');
+    }
+
+    #[test]
+    fn should_set_swap_exact_fees_bps() {
+        // Given
+        let fee = deploy_fee();
+        set_contract_address(contract_address_const::<'OWNER'>());
+
+        // Check pre-action state
+        assert(fee.get_swap_exact_token_to_fees_bps() == 30, 'invalid fee bps 0');
+        // When
+        let result = fee.set_swap_exact_token_to_fees_bps(10);
+
+        // Then
+        assert(result == true, 'invalid result');
+        assert(fee.get_swap_exact_token_to_fees_bps() == 10, 'invalid fee bps 0');
+    }
+
+    #[test]
+    #[should_panic(expected: ('Caller is not the owner', 'ENTRYPOINT_FAILED'))]
+    fn set_fees_bps_0_should_fail_for_unathorized_access() {
+        // Given
+        let fee = deploy_fee();
+        set_contract_address(contract_address_const::<'NOT_OWNER'>());
+
+        // When & Then
+        fee.set_fees_bps_0(10);
+    }
+
+    #[test]
+    #[should_panic(expected: ('Caller is not the owner', 'ENTRYPOINT_FAILED'))]
+    fn set_fees_bps_1_should_fail_for_unathorized_access() {
+        // Given
+        let fee = deploy_fee();
+        set_contract_address(contract_address_const::<'NOT_OWNER'>());
+
+        // When & Then
+        fee.set_fees_bps_1(10);
+    }
+
+    #[test]
+    #[should_panic(expected: ('Caller is not the owner', 'ENTRYPOINT_FAILED'))]
+    fn set_swap_exact_fees_bps_should_fail_for_unathorized_access() {
+        // Given
+        let fee = deploy_fee();
+        set_contract_address(contract_address_const::<'NOT_OWNER'>());
+
+        // When & Then
+        fee.set_swap_exact_token_to_fees_bps(10);
+    }
+
+    #[test]
+    #[should_panic(expected: ('Fees are too high', 'ENTRYPOINT_FAILED'))]
+    fn set_fees_bps_0_should_fail_for_too_high_bps() {
+        // Given
+        let fee = deploy_fee();
+        set_contract_address(contract_address_const::<'OWNER'>());
+
+        // When & Then
+        fee.set_fees_bps_0(101);
+    }
+
+    #[test]
+    #[should_panic(expected: ('Fees are too high', 'ENTRYPOINT_FAILED'))]
+    fn set_fees_bps_1_should_fail_for_too_high_bps() {
+        // Given
+        let fee = deploy_fee();
+        set_contract_address(contract_address_const::<'OWNER'>());
+
+        // When & Then
+        fee.set_fees_bps_1(101);
+    }
+
+    #[test]
+    #[should_panic(expected: ('Fees are too high', 'ENTRYPOINT_FAILED'))]
+    fn set_swap_exact_token_fees_bps_should_fail_for_too_high_bps() {
+        // Given
+        let fee = deploy_fee();
+        set_contract_address(contract_address_const::<'OWNER'>());
+
+        // When & Then
+        fee.set_swap_exact_token_to_fees_bps(101);
+    }
+}
+
 
 mod GetTokenFeeConfig {
     use super::{IFeeDispatcherTrait, contract_address_const, deploy_fee};
@@ -23,8 +169,6 @@ mod GetTokenFeeConfig {
 
         // Then
         assert(result.weight == 0, 'invalid weight');
-        assert(result.fee_on_buy == Option::None, 'invalid fee_on_buy');
-        assert(result.fee_on_sell == Option::None, 'invalid fee_on_sell');
     }
 }
 
@@ -35,7 +179,7 @@ mod SetTokenFeeConfig {
     fn should_set_token_fee_config() {
         // Given
         let fee = deploy_fee();
-        let config = TokenFeeConfig { weight: 10, fee_on_buy: Option::Some(5), fee_on_sell: Option::None };
+        let config = TokenFeeConfig { weight: 10 };
         set_contract_address(contract_address_const::<'OWNER'>());
         let token = contract_address_const::<'TOKEN_1'>();
 
@@ -46,8 +190,6 @@ mod SetTokenFeeConfig {
         assert(result == true, 'invalid result');
         let result = fee.get_token_fee_config(token);
         assert(result.weight == 10, 'invalid weight');
-        assert(result.fee_on_buy == Option::Some(5), 'invalid fee_on_buy');
-        assert(result.fee_on_sell == Option::None, 'invalid fee_on_sell');
     }
 
     #[test]
@@ -61,75 +203,6 @@ mod SetTokenFeeConfig {
 
         // When & Then
         fee.set_token_fee_config(token, config);
-    }
-}
-
-mod GetPairSpecificFees {
-    use super::{IFeeDispatcherTrait, contract_address_const, deploy_fee};
-
-    #[test]
-    fn should_return_None_when_pair_not_stored() {
-        // Given
-        let fee = deploy_fee();
-        let token_a = contract_address_const::<'TOKEN_1'>();
-        let token_b = contract_address_const::<'TOKEN_2'>();
-
-        // When
-        let result = fee.get_pair_specific_fees(token_a, token_b);
-
-        // Then
-        assert(result == Option::None, 'invalid result');
-    }
-}
-
-mod SetPairSpecificFees {
-    use super::{IFeeDispatcherTrait, contract_address_const, deploy_fee, set_contract_address};
-
-    #[test]
-    fn should_set_pair_specific_fees() {
-        // Given
-        let fee = deploy_fee();
-        set_contract_address(contract_address_const::<'OWNER'>());
-        let token_a = contract_address_const::<'TOKEN_1'>();
-        let token_b = contract_address_const::<'TOKEN_2'>();
-
-        // When
-        let result = fee.set_pair_specific_fees(token_a, token_b, Option::Some(0));
-
-        // Then
-        assert(result == true, 'invalid result');
-        let result = fee.get_pair_specific_fees(token_a, token_b);
-        assert(result == Option::Some(0), 'invalid weight');
-    }
-
-    #[test]
-    fn should_set_pair_specific_fees_when_reversed_tokens() {
-        // Given
-        let fee = deploy_fee();
-        set_contract_address(contract_address_const::<'OWNER'>());
-        let token_a = contract_address_const::<'TOKEN_1'>();
-        let token_b = contract_address_const::<'TOKEN_2'>();
-
-        // When
-        let result = fee.set_pair_specific_fees(token_b, token_a, Option::Some(0));
-
-        // Then
-        assert(result == true, 'invalid result');
-        let result = fee.get_pair_specific_fees(token_a, token_b);
-        assert(result == Option::Some(0), 'invalid weight');
-    }
-
-    #[test]
-    #[should_panic(expected: ('Caller is not the owner', 'ENTRYPOINT_FAILED'))]
-    fn should_fail_when_caller_is_not_the_owner() {
-        // Given
-        let fee = deploy_fee();
-        let token_a = contract_address_const::<'TOKEN_1'>();
-        let token_b = contract_address_const::<'TOKEN_2'>();
-        set_contract_address(contract_address_const::<'NOT_OWNER'>());
-
-        // When & Then
-        fee.set_pair_specific_fees(token_a, token_b, Option::Some(0));
     }
 }
 
@@ -154,11 +227,15 @@ mod SetWhitelistedIntegrator {
     use super::{IFeeDispatcherTrait, contract_address_const, deploy_fee, set_contract_address};
 
     #[test]
-    fn should_set_pair_specific_fees() {
+    fn should_whitelist_integrator() {
         // Given
         let fee = deploy_fee();
         set_contract_address(contract_address_const::<'OWNER'>());
         let integrator = contract_address_const::<'INTEGRATOR'>();
+
+        // Check pre-action state
+        let result = fee.is_integrator_whitelisted(integrator);
+        assert(result == false, 'invalid status');
 
         // When
         let result = fee.set_whitelisted_integrator(integrator, true);
@@ -166,7 +243,7 @@ mod SetWhitelistedIntegrator {
         // Then
         assert(result == true, 'invalid result');
         let result = fee.is_integrator_whitelisted(integrator);
-        assert(result == true, 'invalid weight');
+        assert(result == true, 'invalid status');
     }
 
     #[test]
@@ -183,199 +260,268 @@ mod SetWhitelistedIntegrator {
 }
 
 mod GetFees {
-    use super::{
-        FeePolicy, IFeeDispatcherTrait, IFeeMockDispatcher, IFeeMockDispatcherTrait, TokenFeeConfig, a_token_fee_config, contract_address_const,
-        deploy_fee, set_contract_address,
-    };
+    use super::{FeePolicy, IFeeMockDispatcherTrait, TokenFeeConfig, deploy_fee_with_defaults};
+    use super::{IFeeDispatcherTrait, contract_address_const, get_common_actors, set_contract_address};
 
+    // FeeOnBuy, route len = 1, integrator not whitelisted
     #[test]
-    fn should_return_fee_on_buy_and_default_fee_amount_when_both_token_dont_have_config_and_no_integrator() {
+    fn fee_on_buy_simple_no_integrator() {
         // Given
-        let fee = deploy_fee();
-        let fee = IFeeMockDispatcher { contract_address: fee.contract_address };
-        let integrator = contract_address_const::<0>();
-        let integrator_bps = 0;
-        let token1 = contract_address_const::<'TOKEN_1'>();
-        let token2 = contract_address_const::<'TOKEN_2'>();
+        let (_fee, fee_mock) = deploy_fee_with_defaults();
+        let (sell_token, buy_token, integrator_recipient) = get_common_actors();
 
         // When
-        let (result_policy, result_fees) = fee.get_fees(token1, token2, integrator, integrator_bps);
+        let (policy, fees_bps) = fee_mock.get_fees(sell_token, buy_token, integrator_recipient, 300, 1);
 
         // Then
-        assert(result_policy == FeePolicy::FeeOnBuy, 'invalid fee policy');
-        assert(result_fees == 10, 'invalid fee bps');
+        assert(policy == FeePolicy::FeeOnBuy, 'invalid policy');
+        assert(fees_bps == 50, 'invalid fees bps');
     }
 
+    // FeeOnSell, route len = 1, integrator not whitelisted
     #[test]
-    fn should_return_fee_on_buy_and_default_fee_amount_when_buy_token_weigh_is_higher_and_no_integrator() {
+    fn fee_on_sell_simple_no_integrator() {
         // Given
-        let fee = deploy_fee();
-        let fee_mock = IFeeMockDispatcher { contract_address: fee.contract_address };
-        let integrator = contract_address_const::<0>();
-        let integrator_bps = 0;
-        let token1 = contract_address_const::<'TOKEN_1'>();
-        let token2 = contract_address_const::<'TOKEN_2'>();
+        let (fee, fee_mock) = deploy_fee_with_defaults();
+        let (sell_token, buy_token, integrator_recipient) = get_common_actors();
+        let config = TokenFeeConfig { weight: 10 };
         set_contract_address(contract_address_const::<'OWNER'>());
-        fee.set_token_fee_config(token1, a_token_fee_config(10));
-        fee.set_token_fee_config(token2, a_token_fee_config(20));
-        set_contract_address(contract_address_const::<'NOT_OWNER'>());
+        fee.set_token_fee_config(sell_token, config);
 
         // When
-        let (result_policy, result_fees) = fee_mock.get_fees(token1, token2, integrator, integrator_bps);
+        let (policy, fees_bps) = fee_mock.get_fees(sell_token, buy_token, integrator_recipient, 300, 1);
 
         // Then
-        assert(result_policy == FeePolicy::FeeOnBuy, 'invalid fee policy');
-        assert(result_fees == 10, 'invalid fee bps');
+        assert(policy == FeePolicy::FeeOnSell, 'invalid policy');
+        assert(fees_bps == 50, 'invalid fees bps');
     }
 
+    // FeeOnBuy, route len > 1, integrator not whitelisted
     #[test]
-    fn should_return_fee_on_sell_and_default_fee_amount_when_sell_token_weigh_is_higher_and_no_integrator() {
+    fn fee_on_buy_complex_no_integrator() {
         // Given
-        let fee = deploy_fee();
-        let fee_mock = IFeeMockDispatcher { contract_address: fee.contract_address };
-        let integrator = contract_address_const::<0>();
-        let integrator_bps = 0;
-        let token1 = contract_address_const::<'TOKEN_1'>();
-        let token2 = contract_address_const::<'TOKEN_2'>();
+        let (fee, fee_mock) = deploy_fee_with_defaults();
+        let (sell_token, buy_token, integrator_recipient) = get_common_actors();
+        let config = TokenFeeConfig { weight: 10 };
         set_contract_address(contract_address_const::<'OWNER'>());
-        fee.set_token_fee_config(token1, a_token_fee_config(500));
-        fee.set_token_fee_config(token2, a_token_fee_config(20));
-        set_contract_address(contract_address_const::<'NOT_OWNER'>());
+        fee.set_token_fee_config(buy_token, config);
 
         // When
-        let (result_policy, result_fees) = fee_mock.get_fees(token1, token2, integrator, integrator_bps);
+        let (policy, fees_bps) = fee_mock.get_fees(sell_token, buy_token, integrator_recipient, 0, 2);
 
         // Then
-        assert(result_policy == FeePolicy::FeeOnSell, 'invalid fee policy');
-        assert(result_fees == 10, 'invalid fee bps');
+        assert(policy == FeePolicy::FeeOnBuy, 'invalid policy');
+        assert(fees_bps == 100, 'invalid fees bps');
     }
 
+    // FeeOnSell, route len > 1, integrator not whitelisted
     #[test]
-    fn should_return_fee_on_sell_and_pair_specific_fees_when_sell_token_weigh_is_higher_no_integrator_and_pair_exists() {
+    fn fee_on_sell_complex_no_integrator() {
         // Given
-        let fee = deploy_fee();
-        let fee_mock = IFeeMockDispatcher { contract_address: fee.contract_address };
-        let integrator = contract_address_const::<0>();
-        let integrator_bps = 0;
-        let token1 = contract_address_const::<'TOKEN_1'>();
-        let token2 = contract_address_const::<'TOKEN_2'>();
+        let (fee, fee_mock) = deploy_fee_with_defaults();
+        let (sell_token, buy_token, integrator_recipient) = get_common_actors();
+        let config = TokenFeeConfig { weight: 10 };
         set_contract_address(contract_address_const::<'OWNER'>());
-        fee.set_pair_specific_fees(token1, token2, Option::Some(0));
-        fee.set_token_fee_config(token1, a_token_fee_config(500));
-        fee.set_token_fee_config(token2, a_token_fee_config(20));
-        set_contract_address(contract_address_const::<'NOT_OWNER'>());
+        fee.set_token_fee_config(sell_token, config);
 
         // When
-        let (result_policy, result_fees) = fee_mock.get_fees(token1, token2, integrator, integrator_bps);
+        let (policy, fees_bps) = fee_mock.get_fees(sell_token, buy_token, integrator_recipient, 300, 2);
 
         // Then
-        assert(result_policy == FeePolicy::FeeOnSell, 'invalid fee policy');
-        assert(result_fees == 0, 'invalid fee bps');
+        assert(policy == FeePolicy::FeeOnSell, 'invalid policy');
+        assert(fees_bps == 100, 'invalid fees bps');
     }
 
+    // FeeOnBuy, route len = 1, integrator whitelisted with integrator fee < fees_bps
     #[test]
-    fn should_return_fee_on_sell_and_buy_token_specific_fee_when_lowest() {
+    fn fee_on_buy_simple_integrator_fees_less() {
         // Given
-        let fee = deploy_fee();
-        let fee_mock = IFeeMockDispatcher { contract_address: fee.contract_address };
-        let integrator = contract_address_const::<0>();
-        let integrator_bps = 0;
-        let token1 = contract_address_const::<'TOKEN_1'>();
-        let token2 = contract_address_const::<'TOKEN_2'>();
+        let (fee, fee_mock) = deploy_fee_with_defaults();
+        let (sell_token, buy_token, integrator_recipient) = get_common_actors();
         set_contract_address(contract_address_const::<'OWNER'>());
-        fee.set_token_fee_config(token1, TokenFeeConfig { weight: 500, fee_on_buy: Option::Some(5), fee_on_sell: Option::Some(5) });
-        fee.set_token_fee_config(token2, TokenFeeConfig { weight: 20, fee_on_buy: Option::Some(2), fee_on_sell: Option::Some(7) });
-        set_contract_address(contract_address_const::<'NOT_OWNER'>());
-
+        fee.set_whitelisted_integrator(integrator_recipient, true);
         // When
-        let (result_policy, result_fees) = fee_mock.get_fees(token1, token2, integrator, integrator_bps);
+        let (policy, fees_bps) = fee_mock.get_fees(sell_token, buy_token, integrator_recipient, 40, 1);
 
         // Then
-        assert(result_policy == FeePolicy::FeeOnSell, 'invalid fee policy');
-        assert(result_fees == 2, 'invalid fee bps');
+        assert(policy == FeePolicy::FeeOnBuy, 'invalid policy');
+        assert(fees_bps == 50, 'invalid fees bps');
     }
 
+    // FeeOnSell, route len = 1, integrator whitelisted with integrator fee < fees_bps
     #[test]
-    fn should_return_fee_on_sell_and_sell_token_specific_fee_when_lowest() {
+    fn fee_on_sell_simple_integrator_fees_less() {
         // Given
-        let fee = deploy_fee();
-        let fee_mock = IFeeMockDispatcher { contract_address: fee.contract_address };
-        let integrator = contract_address_const::<0>();
-        let integrator_bps = 0;
-        let token1 = contract_address_const::<'TOKEN_1'>();
-        let token2 = contract_address_const::<'TOKEN_2'>();
+        let (fee, fee_mock) = deploy_fee_with_defaults();
+        let (sell_token, buy_token, integrator_recipient) = get_common_actors();
+        let config = TokenFeeConfig { weight: 10 };
         set_contract_address(contract_address_const::<'OWNER'>());
-        fee.set_token_fee_config(token1, TokenFeeConfig { weight: 500, fee_on_buy: Option::Some(5), fee_on_sell: Option::Some(5) });
-        fee.set_token_fee_config(token2, TokenFeeConfig { weight: 20, fee_on_buy: Option::Some(7), fee_on_sell: Option::None });
-        set_contract_address(contract_address_const::<'NOT_OWNER'>());
+        fee.set_whitelisted_integrator(integrator_recipient, true);
+        fee.set_token_fee_config(sell_token, config);
 
         // When
-        let (result_policy, result_fees) = fee_mock.get_fees(token1, token2, integrator, integrator_bps);
+        let (policy, fees_bps) = fee_mock.get_fees(sell_token, buy_token, integrator_recipient, 40, 1);
 
         // Then
-        assert(result_policy == FeePolicy::FeeOnSell, 'invalid fee policy');
-        assert(result_fees == 5, 'invalid fee bps');
+        assert(policy == FeePolicy::FeeOnSell, 'invalid policy');
+        assert(fees_bps == 50, 'invalid fees bps');
     }
 
+    // FeeOnBuy, route len > 1, integrator whitelisted with integrator fee < fees_bps
     #[test]
-    fn should_return_fee_on_buy_and_our_fees_when_integrators_is_not_whitelisted() {
+    fn fee_on_buy_complex_integrator_fees_less() {
         // Given
-        let fee = deploy_fee();
-        let fee_mock = IFeeMockDispatcher { contract_address: fee.contract_address };
-        let integrator = contract_address_const::<'INTEGRATOR'>();
-        let integrator_bps = 50;
-        let token1 = contract_address_const::<'TOKEN_1'>();
-        let token2 = contract_address_const::<'TOKEN_2'>();
+        let (fee, fee_mock) = deploy_fee_with_defaults();
+        let (sell_token, buy_token, integrator_recipient) = get_common_actors();
+        let config = TokenFeeConfig { weight: 10 };
         set_contract_address(contract_address_const::<'OWNER'>());
-        set_contract_address(contract_address_const::<'NOT_OWNER'>());
+        fee.set_whitelisted_integrator(integrator_recipient, true);
+        fee.set_token_fee_config(buy_token, config);
 
         // When
-        let (result_policy, result_fees) = fee_mock.get_fees(token1, token2, integrator, integrator_bps);
+        let (policy, fees_bps) = fee_mock.get_fees(sell_token, buy_token, integrator_recipient, 99, 2);
 
         // Then
-        assert(result_policy == FeePolicy::FeeOnBuy, 'invalid fee policy');
-        assert(result_fees == 10, 'invalid fee bps');
+        assert(policy == FeePolicy::FeeOnBuy, 'invalid policy');
+        assert(fees_bps == 100, 'invalid fees bps');
     }
 
+    // FeeOnSell, route len > 1, integrator whitelisted with integrator fee < fees_bps
     #[test]
-    fn should_return_fee_on_buy_and_our_fees_when_integrator_is_whitelisted_but_fees_lower_than_ours() {
+    fn fee_on_sell_complex_integrator_fees_less() {
         // Given
-        let fee = deploy_fee();
-        let fee_mock = IFeeMockDispatcher { contract_address: fee.contract_address };
-        let integrator = contract_address_const::<'INTEGRATOR'>();
-        let integrator_bps = 1;
-        let token1 = contract_address_const::<'TOKEN_1'>();
-        let token2 = contract_address_const::<'TOKEN_2'>();
+        let (fee, fee_mock) = deploy_fee_with_defaults();
+        let (sell_token, buy_token, integrator_recipient) = get_common_actors();
+        let config = TokenFeeConfig { weight: 10 };
         set_contract_address(contract_address_const::<'OWNER'>());
-        fee.set_whitelisted_integrator(integrator, true);
-        set_contract_address(contract_address_const::<'NOT_OWNER'>());
+        fee.set_whitelisted_integrator(integrator_recipient, true);
+        fee.set_token_fee_config(sell_token, config);
 
         // When
-        let (result_policy, result_fees) = fee_mock.get_fees(token1, token2, integrator, integrator_bps);
+        let (policy, fees_bps) = fee_mock.get_fees(sell_token, buy_token, integrator_recipient, 99, 2);
 
         // Then
-        assert(result_policy == FeePolicy::FeeOnBuy, 'invalid fee policy');
-        assert(result_fees == 10, 'invalid fee bps');
+        assert(policy == FeePolicy::FeeOnSell, 'invalid policy');
+        assert(fees_bps == 100, 'invalid fees bps');
     }
 
+    // FeeOnBuy, route len = 1, integrator whitelisted with integrator fee = fees_bps
     #[test]
-    fn should_return_fee_on_buy_and_0_fees_when_integrator_is_whitelisted_and_fees_higher_than_ours() {
+    fn fee_on_buy_simple_integrator_fees_more() {
         // Given
-        let fee = deploy_fee();
-        let fee_mock = IFeeMockDispatcher { contract_address: fee.contract_address };
-        let integrator = contract_address_const::<'INTEGRATOR'>();
-        let integrator_bps = 50;
-        let token1 = contract_address_const::<'TOKEN_1'>();
-        let token2 = contract_address_const::<'TOKEN_2'>();
+        let (fee, fee_mock) = deploy_fee_with_defaults();
+        let (sell_token, buy_token, integrator_recipient) = get_common_actors();
         set_contract_address(contract_address_const::<'OWNER'>());
-        fee.set_whitelisted_integrator(integrator, true);
-        set_contract_address(contract_address_const::<'NOT_OWNER'>());
-
+        fee.set_whitelisted_integrator(integrator_recipient, true);
         // When
-        let (result_policy, result_fees) = fee_mock.get_fees(token1, token2, integrator, integrator_bps);
+        let (policy, fees_bps) = fee_mock.get_fees(sell_token, buy_token, integrator_recipient, 50, 1);
 
         // Then
-        assert(result_policy == FeePolicy::FeeOnBuy, 'invalid fee policy');
-        assert(result_fees == 0, 'invalid fee bps');
+        assert(policy == FeePolicy::FeeOnBuy, 'invalid policy');
+        assert(fees_bps == 0, 'invalid fees bps');
+    }
+
+    // FeeOnSell, route len > 1, integrator whitelisted with integrator fee > fees_bps
+    #[test]
+    fn fee_on_sell_complex_integrator_fees_more() {
+        // Given
+        let (fee, fee_mock) = deploy_fee_with_defaults();
+        let (sell_token, buy_token, integrator_recipient) = get_common_actors();
+        let config = TokenFeeConfig { weight: 10 };
+        set_contract_address(contract_address_const::<'OWNER'>());
+        fee.set_whitelisted_integrator(integrator_recipient, true);
+        fee.set_token_fee_config(sell_token, config);
+
+        // When
+        let (policy, fees_bps) = fee_mock.get_fees(sell_token, buy_token, integrator_recipient, 300, 2);
+
+        // Then
+        assert(policy == FeePolicy::FeeOnSell, 'invalid policy');
+        assert(fees_bps == 0, 'invalid fees bps');
     }
 }
+
+mod CollectFees {
+    use avnu_lib::interfaces::erc20::IERC20DispatcherTrait;
+    use super::IFeeMockDispatcherTrait;
+    use super::{contract_address_const, deploy_fee_with_address, deploy_mock_token, get_common_actors};
+
+    fn collect_fee_exchange_and_integrator() {
+        // Given
+        let (_fee, fee_mock, fee_address) = deploy_fee_with_address();
+        let (_sell_token, _buy_token, integrator_recipient) = get_common_actors();
+        let amount: felt252 = 10000;
+        let token = deploy_mock_token(fee_address, amount, 1);
+        let amount_u256 = 10000_u256;
+        let fee_recipient = contract_address_const::<'FEE_RECIPIENT'>();
+
+        // When
+        let remaining_amount = fee_mock.collect_fees(token, amount_u256, 10, integrator_recipient, 30);
+
+        // Then
+        let expected_remaining_amount = amount_u256 - 30_u256 - 10_u256;
+        assert(token.balanceOf(integrator_recipient) == 30_u256, 'invalid token balance');
+        assert(token.balanceOf(fee_recipient) == 10_u256, 'invalid token balance');
+        assert(remaining_amount == expected_remaining_amount, 'invalid remaining amount');
+    }
+
+    fn collect_fee_nil_exchange_and_integrator() {
+        // Given
+        let (_fee, fee_mock, fee_address) = deploy_fee_with_address();
+        let (_sell_token, _buy_token, integrator_recipient) = get_common_actors();
+        let amount: felt252 = 10000;
+        let token = deploy_mock_token(fee_address, amount, 1);
+        let amount_u256 = 10000_u256;
+        let fee_recipient = contract_address_const::<'FEE_RECIPIENT'>();
+
+        // When
+        let remaining_amount = fee_mock.collect_fees(token, amount_u256, 0, integrator_recipient, 30);
+
+        // Then
+        let expected_remaining_amount = amount_u256 - 30_u256 - 0_u256;
+        assert(token.balanceOf(integrator_recipient) == 30_u256, 'invalid token balance');
+        assert(token.balanceOf(fee_recipient) == 0_u256, 'invalid token balance');
+        assert(remaining_amount == expected_remaining_amount, 'invalid remaining amount');
+    }
+
+    fn collect_fee_exchange_and_nil_integrator() {
+        // Given
+        let (_fee, fee_mock, fee_address) = deploy_fee_with_address();
+        let (_sell_token, _buy_token, integrator_recipient) = get_common_actors();
+        let amount: felt252 = 10000;
+        let token = deploy_mock_token(fee_address, amount, 1);
+        let amount_u256 = 10000_u256;
+        let fee_recipient = contract_address_const::<'FEE_RECIPIENT'>();
+
+        // When
+        let remaining_amount = fee_mock.collect_fees(token, amount_u256, 10, integrator_recipient, 0);
+
+        // Then
+        let expected_remaining_amount = amount_u256 - 0_u256 - 10_u256;
+        assert(token.balanceOf(integrator_recipient) == 0_u256, 'invalid token balance');
+        assert(token.balanceOf(fee_recipient) == 10_u256, 'invalid token balance');
+        assert(remaining_amount == expected_remaining_amount, 'invalid remaining amount');
+    }
+
+    #[test]
+    #[should_panic(expected: ('Integrator fees are too high', 'ENTRYPOINT_FAILED'))]
+    fn should_throw_collect_fee_exchange_and_high_integrator_fees() {
+        // Given
+        let (_fee, fee_mock, fee_address) = deploy_fee_with_address();
+        let (_sell_token, _buy_token, integrator_recipient) = get_common_actors();
+        let amount: felt252 = 10000;
+        let token = deploy_mock_token(fee_address, amount, 1);
+        let amount_u256 = 10000_u256;
+        let fee_recipient = contract_address_const::<'FEE_RECIPIENT'>();
+
+        // When
+        let remaining_amount = fee_mock.collect_fees(token, amount_u256, 10, integrator_recipient, 501);
+
+        // Then
+        let expected_remaining_amount = amount_u256 - 501_u256 - 10_u256;
+        assert(token.balanceOf(integrator_recipient) == 501_u256, 'invalid token balance');
+        assert(token.balanceOf(fee_recipient) == 10_u256, 'invalid token balance');
+        assert(remaining_amount == expected_remaining_amount, 'invalid remaining amount');
+    }
+}
+
