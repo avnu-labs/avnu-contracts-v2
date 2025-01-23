@@ -60,7 +60,7 @@ pub mod FeeComponent {
         // Defines the weight (to know if we take fees on buy or sell)
         token_fees: Map<ContractAddress, TokenFeeConfig>,
         // Defines the list of whitelisted integrator.
-        // With don't take any fee if the integrator's fee amount is greater or equal to ours
+        // we don't take any fee if the integrator's fee amount is greater or equal to ours
         whitelisted_integrators: Map<ContractAddress, bool>,
     }
 
