@@ -58,7 +58,7 @@ pub mod FeeComponent {
         fees_recipient: ContractAddress,
         // The specific fee configuration for a given token address.
         // Defines the weight (to know if we take fees on buy or sell)
-        token_fees: Map<ContractAddress, TokenFeeConfig>,
+        token_fee_configs: Map<ContractAddress, TokenFeeConfig>,
         // Defines the list of whitelisted integrator.
         // we don't take any fee if the integrator's fee amount is greater or equal to ours
         whitelisted_integrators: Map<ContractAddress, bool>,
@@ -116,12 +116,12 @@ pub mod FeeComponent {
         }
 
         fn get_token_fee_config(self: @ComponentState<TContractState>, token: ContractAddress) -> TokenFeeConfig {
-            self.token_fees.read(token)
+            self.token_fee_configs.read(token)
         }
 
         fn set_token_fee_config(ref self: ComponentState<TContractState>, token: ContractAddress, config: TokenFeeConfig) -> bool {
             get_dep_component!(@self, Ownable).assert_only_owner();
-            self.token_fees.write(token, config);
+            self.token_fee_configs.write(token, config);
             true
         }
 
@@ -163,8 +163,8 @@ pub mod FeeComponent {
             route_len: u32,
         ) -> (FeePolicy, u128) {
             // First we retrieve the fee configuration for the two tokens
-            let sell_token_fee_config = self.token_fees.read(sell_token_address);
-            let buy_token_fee_config = self.token_fees.read(buy_token_address);
+            let sell_token_fee_config = self.token_fee_configs.read(sell_token_address);
+            let buy_token_fee_config = self.token_fee_configs.read(buy_token_address);
 
             // Thanks to the weight we can determine if we take fees on buy or sell
             let policy = if (buy_token_fee_config.weight >= sell_token_fee_config.weight) {

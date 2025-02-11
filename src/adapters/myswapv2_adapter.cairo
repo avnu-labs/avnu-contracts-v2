@@ -36,10 +36,10 @@ pub mod MyswapV2Adapter {
         fn swap(
             self: @ContractState,
             exchange_address: ContractAddress,
-            token_from_address: ContractAddress,
-            token_from_amount: u256,
-            token_to_address: ContractAddress,
-            token_to_min_amount: u256,
+            sell_token_address: ContractAddress,
+            sell_token_amount: u256,
+            buy_token_address: ContractAddress,
+            buy_token_min_amount: u256,
             to: ContractAddress,
             additional_swap_params: Array<felt252>,
         ) {
@@ -50,15 +50,15 @@ pub mod MyswapV2Adapter {
             let myswapv2 = IMySwapV2RouterDispatcher { contract_address: exchange_address };
             let pool_key = *additional_swap_params[0];
             let sqrt_ratio_distance: u256 = (*additional_swap_params[1]).into();
-            let is_token_0 = myswapv2.token0(pool_key) == token_from_address;
+            let is_token_0 = myswapv2.token0(pool_key) == sell_token_address;
             let sqrt_price = myswapv2.current_sqrt_price(pool_key);
             let sqrt_ratio_limit = compute_sqrt_ratio_limit(sqrt_price, sqrt_ratio_distance, !is_token_0, MIN_SQRT_RATIO, MAX_SQRT_RATIO);
 
             // Approve
-            IERC20Dispatcher { contract_address: token_from_address }.approve(exchange_address, token_from_amount);
+            IERC20Dispatcher { contract_address: sell_token_address }.approve(exchange_address, sell_token_amount);
 
             // Swap
-            myswapv2.swap(pool_key, is_token_0, token_from_amount, true, sqrt_ratio_limit);
+            myswapv2.swap(pool_key, is_token_0, sell_token_amount, true, sqrt_ratio_limit);
         }
     }
 }

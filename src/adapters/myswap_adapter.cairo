@@ -20,17 +20,17 @@ pub mod MyswapAdapter {
         fn swap(
             self: @ContractState,
             exchange_address: ContractAddress,
-            token_from_address: ContractAddress,
-            token_from_amount: u256,
-            token_to_address: ContractAddress,
-            token_to_min_amount: u256,
+            sell_token_address: ContractAddress,
+            sell_token_amount: u256,
+            buy_token_address: ContractAddress,
+            buy_token_min_amount: u256,
             to: ContractAddress,
             additional_swap_params: Array<felt252>,
         ) {
             assert(additional_swap_params.len() == 1, 'Invalid swap params');
             let pool_id = *additional_swap_params[0];
-            IERC20Dispatcher { contract_address: token_from_address }.approve(exchange_address, token_from_amount);
-            IMySwapRouterDispatcher { contract_address: exchange_address }.swap(pool_id, token_from_address, token_from_amount, token_to_min_amount);
+            IERC20Dispatcher { contract_address: sell_token_address }.approve(exchange_address, sell_token_amount);
+            IMySwapRouterDispatcher { contract_address: exchange_address }.swap(pool_id, sell_token_address, sell_token_amount, buy_token_min_amount);
         }
     }
 }

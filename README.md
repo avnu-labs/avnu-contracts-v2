@@ -71,11 +71,11 @@ trait IExchange<TContractState> {
     fn set_adapter_class_hash(ref self: TContractState, exchange_address: ContractAddress, adapter_class_hash: ClassHash) -> bool;
     fn multi_route_swap(
         ref self: TContractState,
-        token_from_address: ContractAddress,
-        token_from_amount: u256,
-        token_to_address: ContractAddress,
-        token_to_amount: u256,
-        token_to_min_amount: u256,
+        sell_token_address: ContractAddress,
+        sell_token_amount: u256,
+        buy_token_address: ContractAddress,
+        buy_token_amount: u256,
+        buy_token_min_amount: u256,
         beneficiary: ContractAddress,
         integrator_fee_amount_bps: u128,
         integrator_fee_recipient: ContractAddress,
@@ -83,11 +83,11 @@ trait IExchange<TContractState> {
     ) -> bool;
     fn swap_exact_token_to(
         ref self: TContractState,
-        token_from_address: ContractAddress,
-        token_from_amount: u256,
-        token_from_max_amount: u256,
-        token_to_address: ContractAddress,
-        token_to_amount: u256,
+        sell_token_address: ContractAddress,
+        sell_token_amount: u256,
+        sell_token_max_amount: u256,
+        buy_token_address: ContractAddress,
+        buy_token_amount: u256,
         beneficiary: ContractAddress,
         routes: Array<Route>,
     ) -> bool;

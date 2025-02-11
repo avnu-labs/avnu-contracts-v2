@@ -28,10 +28,10 @@ pub mod NostraV2Adapter {
         fn swap(
             self: @ContractState,
             exchange_address: ContractAddress,
-            token_from_address: ContractAddress,
-            token_from_amount: u256,
-            token_to_address: ContractAddress,
-            token_to_min_amount: u256,
+            sell_token_address: ContractAddress,
+            sell_token_amount: u256,
+            buy_token_address: ContractAddress,
+            buy_token_min_amount: u256,
             to: ContractAddress,
             additional_swap_params: Array<felt252>,
         ) {
@@ -45,9 +45,9 @@ pub mod NostraV2Adapter {
             let block_timestamp = get_block_timestamp();
             let deadline = block_timestamp;
 
-            IERC20Dispatcher { contract_address: token_from_address }.approve(exchange_address, token_from_amount);
+            IERC20Dispatcher { contract_address: sell_token_address }.approve(exchange_address, sell_token_amount);
             INostraV2RouterDispatcher { contract_address: exchange_address }
-                .swap_exact_tokens_for_tokens(token_from_amount, token_to_min_amount, token_from_address, pairs.span(), to, deadline);
+                .swap_exact_tokens_for_tokens(sell_token_amount, buy_token_min_amount, sell_token_address, pairs.span(), to, deadline);
         }
     }
 }

@@ -73,11 +73,11 @@ mod MultiRouteSwap {
 
     struct SwapScenario {
         exchange: IExchangeDispatcher,
-        token_from_address: ContractAddress,
-        token_from_amount: u256,
-        token_to_address: ContractAddress,
-        token_to_amount: u256,
-        token_to_min_amount: u256,
+        sell_token_address: ContractAddress,
+        sell_token_amount: u256,
+        buy_token_address: ContractAddress,
+        buy_token_amount: u256,
+        buy_token_min_amount: u256,
         beneficiary: ContractAddress,
         routes: Array<Route>,
         expected_event: Swap,
@@ -89,35 +89,35 @@ mod MultiRouteSwap {
         // Given
         let (exchange, _, _) = deploy_exchange();
         let beneficiary = contract_address_const::<0x12345>();
-        let token_from = deploy_mock_token(beneficiary, 10, 1);
-        let token_from_address = token_from.contract_address;
-        let token_to = deploy_mock_token(beneficiary, 0, 2);
-        let token_to_address = token_to.contract_address;
-        let token_from_amount = u256 { low: 10, high: 0 };
-        let token_to_min_amount = u256 { low: 9, high: 0 };
-        let token_to_amount = u256 { low: 9, high: 0 };
+        let sell_token = deploy_mock_token(beneficiary, 10, 1);
+        let sell_token_address = sell_token.contract_address;
+        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        let buy_token_address = buy_token.contract_address;
+        let sell_token_amount = u256 { low: 10, high: 0 };
+        let buy_token_min_amount = u256 { low: 9, high: 0 };
+        let buy_token_amount = u256 { low: 9, high: 0 };
         let mut routes = ArrayTrait::new();
         routes
             .append(
                 Route {
-                    token_from: token_from_address,
-                    token_to: token_to_address,
+                    sell_token: sell_token_address,
+                    buy_token: buy_token_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 },
             );
         set_contract_address(beneficiary);
-        token_from.approve(exchange.contract_address, token_from_amount);
+        sell_token.approve(exchange.contract_address, sell_token_amount);
 
         // When
         let result = exchange
             .multi_route_swap(
-                token_from_address,
-                token_from_amount,
-                token_to_address,
-                token_to_amount,
-                token_to_min_amount,
+                sell_token_address,
+                sell_token_amount,
+                buy_token_address,
+                buy_token_amount,
+                buy_token_min_amount,
                 beneficiary,
                 0,
                 contract_address_const::<0x0>(),
@@ -130,9 +130,9 @@ mod MultiRouteSwap {
         let event: Swap = starknet::Event::deserialize(ref keys, ref data).unwrap();
         let expected_event = Swap {
             taker_address: beneficiary,
-            sell_address: token_from_address,
-            sell_amount: token_from_amount,
-            buy_address: token_to_address,
+            sell_address: sell_token_address,
+            sell_amount: sell_token_amount,
+            buy_address: buy_token_address,
             buy_amount: u256 { low: 10, high: 0 },
             beneficiary: beneficiary,
         };
@@ -140,14 +140,14 @@ mod MultiRouteSwap {
         assert(pop_log_raw(exchange.contract_address).is_none(), 'no more events');
 
         // Verify that beneficiary receives tokens to
-        let balance = token_to.balanceOf(beneficiary);
+        let balance = buy_token.balanceOf(beneficiary);
         assert(balance == 10_u256, 'Invalid beneficiary balance');
-        let (mut keys, mut data) = pop_log_raw(token_to_address).unwrap();
+        let (mut keys, mut data) = pop_log_raw(buy_token_address).unwrap();
         let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
         let expected_event = Transfer { to: beneficiary, amount: 10_u256 };
         assert(event == expected_event, 'Invalid transfer event');
-        assert(pop_log_raw(token_to_address).is_none(), 'no more token_to events');
-        assert(pop_log_raw(token_from_address).is_none(), 'no more token_from events');
+        assert(pop_log_raw(buy_token_address).is_none(), 'no more buy_token events');
+        assert(pop_log_raw(sell_token_address).is_none(), 'no more sell_token events');
     }
 
     #[test]
@@ -157,35 +157,35 @@ mod MultiRouteSwap {
         // Given
         let (exchange, _, _) = deploy_exchange();
         let beneficiary = contract_address_const::<0x12345>();
-        let token_from = deploy_mock_token(beneficiary, 10, 1);
-        let token_from_address = token_from.contract_address;
-        let token_to = deploy_mock_token(beneficiary, 0, 2);
-        let token_to_address = token_to.contract_address;
-        let token_from_amount = u256 { low: 10, high: 0 };
-        let token_to_min_amount = u256 { low: 1, high: 0 };
-        let token_to_amount = u256 { low: 1, high: 0 };
+        let sell_token = deploy_mock_token(beneficiary, 10, 1);
+        let sell_token_address = sell_token.contract_address;
+        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        let buy_token_address = buy_token.contract_address;
+        let sell_token_amount = u256 { low: 10, high: 0 };
+        let buy_token_min_amount = u256 { low: 1, high: 0 };
+        let buy_token_amount = u256 { low: 1, high: 0 };
         let mut routes = ArrayTrait::new();
         routes
             .append(
                 Route {
-                    token_from: token_from_address,
-                    token_to: token_to_address,
+                    sell_token: sell_token_address,
+                    buy_token: buy_token_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 40 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 },
             );
         set_contract_address(beneficiary);
-        token_from.approve(exchange.contract_address, token_from_amount);
+        sell_token.approve(exchange.contract_address, sell_token_amount);
 
         // When
         exchange
             .multi_route_swap(
-                token_from_address,
-                token_from_amount,
-                token_to_address,
-                token_to_amount,
-                token_to_min_amount,
+                sell_token_address,
+                sell_token_amount,
+                buy_token_address,
+                buy_token_amount,
+                buy_token_min_amount,
                 beneficiary,
                 0,
                 contract_address_const::<0x0>(),
@@ -196,39 +196,39 @@ mod MultiRouteSwap {
     #[test]
     #[available_gas(20000000)]
     #[should_panic(expected: ('Token from amount is 0', 'ENTRYPOINT_FAILED'))]
-    fn should_throw_error_when_token_from_amount_is_0() {
+    fn should_throw_error_when_sell_token_amount_is_0() {
         // Given
         let (exchange, _, _) = deploy_exchange();
         let beneficiary = contract_address_const::<0x12345>();
-        let token_from = deploy_mock_token(beneficiary, 10, 1);
-        let token_from_address = token_from.contract_address;
-        let token_to = deploy_mock_token(beneficiary, 0, 2);
-        let token_to_address = token_to.contract_address;
-        let token_from_amount = u256 { low: 0, high: 0 };
-        let token_to_min_amount = u256 { low: 9, high: 0 };
-        let token_to_amount = u256 { low: 9, high: 0 };
+        let sell_token = deploy_mock_token(beneficiary, 10, 1);
+        let sell_token_address = sell_token.contract_address;
+        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        let buy_token_address = buy_token.contract_address;
+        let sell_token_amount = u256 { low: 0, high: 0 };
+        let buy_token_min_amount = u256 { low: 9, high: 0 };
+        let buy_token_amount = u256 { low: 9, high: 0 };
         let mut routes = ArrayTrait::new();
         routes
             .append(
                 Route {
-                    token_from: token_from_address,
-                    token_to: token_to_address,
+                    sell_token: sell_token_address,
+                    buy_token: buy_token_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 },
             );
         set_contract_address(beneficiary);
-        token_from.approve(exchange.contract_address, token_from_amount);
+        sell_token.approve(exchange.contract_address, sell_token_amount);
 
         // When & Then
         exchange
             .multi_route_swap(
-                token_from_address,
-                token_from_amount,
-                token_to_address,
-                token_to_amount,
-                token_to_min_amount,
+                sell_token_address,
+                sell_token_amount,
+                buy_token_address,
+                buy_token_amount,
+                buy_token_min_amount,
                 beneficiary,
                 0,
                 contract_address_const::<0x0>(),
@@ -243,35 +243,35 @@ mod MultiRouteSwap {
         // Given
         let (exchange, _, _) = deploy_exchange();
         let beneficiary = contract_address_const::<0x12345>();
-        let token_from = deploy_mock_token(beneficiary, 5, 1);
-        let token_from_address = token_from.contract_address;
-        let token_to = deploy_mock_token(beneficiary, 0, 2);
-        let token_to_address = token_to.contract_address;
-        let token_from_amount = u256 { low: 10, high: 0 };
-        let token_to_min_amount = u256 { low: 9, high: 0 };
-        let token_to_amount = u256 { low: 9, high: 0 };
+        let sell_token = deploy_mock_token(beneficiary, 5, 1);
+        let sell_token_address = sell_token.contract_address;
+        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        let buy_token_address = buy_token.contract_address;
+        let sell_token_amount = u256 { low: 10, high: 0 };
+        let buy_token_min_amount = u256 { low: 9, high: 0 };
+        let buy_token_amount = u256 { low: 9, high: 0 };
         let mut routes = ArrayTrait::new();
         routes
             .append(
                 Route {
-                    token_from: token_from_address,
-                    token_to: token_to_address,
+                    sell_token: sell_token_address,
+                    buy_token: buy_token_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 },
             );
         set_contract_address(beneficiary);
-        token_from.approve(exchange.contract_address, token_from_amount);
+        sell_token.approve(exchange.contract_address, sell_token_amount);
 
         // When & Then
         exchange
             .multi_route_swap(
-                token_from_address,
-                token_from_amount,
-                token_to_address,
-                token_to_amount,
-                token_to_min_amount,
+                sell_token_address,
+                sell_token_amount,
+                buy_token_address,
+                buy_token_amount,
+                buy_token_min_amount,
                 beneficiary,
                 0,
                 contract_address_const::<0x0>(),
@@ -289,35 +289,35 @@ mod MultiRouteSwap {
         let fees_recipient = contract_address_const::<0x1111>();
         fee.set_fees_recipient(fees_recipient);
         fee.set_fees_bps_0(20);
-        let token_from = deploy_mock_token(beneficiary, 1000, 1);
-        let token_from_address = token_from.contract_address;
-        let token_to = deploy_mock_token(beneficiary, 0, 2);
-        let token_to_address = token_to.contract_address;
-        let token_from_amount = u256 { low: 1000, high: 0 };
-        let token_to_min_amount = u256 { low: 950, high: 0 };
-        let token_to_amount = u256 { low: 950, high: 0 };
+        let sell_token = deploy_mock_token(beneficiary, 1000, 1);
+        let sell_token_address = sell_token.contract_address;
+        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        let buy_token_address = buy_token.contract_address;
+        let sell_token_amount = u256 { low: 1000, high: 0 };
+        let buy_token_min_amount = u256 { low: 950, high: 0 };
+        let buy_token_amount = u256 { low: 950, high: 0 };
         let mut routes = ArrayTrait::new();
         routes
             .append(
                 Route {
-                    token_from: token_from_address,
-                    token_to: token_to_address,
+                    sell_token: sell_token_address,
+                    buy_token: buy_token_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 },
             );
         set_contract_address(beneficiary);
-        token_from.approve(exchange.contract_address, token_from_amount);
+        sell_token.approve(exchange.contract_address, sell_token_amount);
 
         // When
         let result = exchange
             .multi_route_swap(
-                token_from_address,
-                token_from_amount,
-                token_to_address,
-                token_to_amount,
-                token_to_min_amount,
+                sell_token_address,
+                sell_token_amount,
+                buy_token_address,
+                buy_token_amount,
+                buy_token_min_amount,
                 beneficiary,
                 0x64, // 1%, 100 bps
                 contract_address_const::<0x111>(),
@@ -330,9 +330,9 @@ mod MultiRouteSwap {
         let event: Swap = starknet::Event::deserialize(ref keys, ref data).unwrap();
         let expected_event = Swap {
             taker_address: beneficiary,
-            sell_address: token_from_address,
-            sell_amount: token_from_amount,
-            buy_address: token_to_address,
+            sell_address: sell_token_address,
+            sell_amount: sell_token_amount,
+            buy_address: buy_token_address,
             buy_amount: u256 { low: 988, high: 0 },
             beneficiary: beneficiary,
         };
@@ -341,26 +341,26 @@ mod MultiRouteSwap {
 
         // Verify transfers
         // Verify integrator's fees
-        let (mut keys, mut data) = pop_log_raw(token_to_address).unwrap();
+        let (mut keys, mut data) = pop_log_raw(buy_token_address).unwrap();
         let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
         let expected_event = Transfer { to: contract_address_const::<0x111>(), amount: 10_u256 };
         assert(event == expected_event, 'invalid token transfer');
 
         // Verify avnu's fees
-        let (mut keys, mut data) = pop_log_raw(token_to_address).unwrap();
+        let (mut keys, mut data) = pop_log_raw(buy_token_address).unwrap();
         let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
         let expected_event = Transfer { to: fees_recipient, amount: 2_u256 };
         assert(event == expected_event, 'invalid token transfer');
 
         // Verify that beneficiary receives tokens to
-        let balance = token_to.balanceOf(beneficiary);
+        let balance = buy_token.balanceOf(beneficiary);
         assert(balance == 988_u256, 'Invalid beneficiary balance');
-        let (mut keys, mut data) = pop_log_raw(token_to_address).unwrap();
+        let (mut keys, mut data) = pop_log_raw(buy_token_address).unwrap();
         let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
         let expected_event = Transfer { to: beneficiary, amount: 988_u256 };
         assert(event == expected_event, 'Invalid beneficiary balance');
-        assert(pop_log_raw(token_to_address).is_none(), 'no more token_to events');
-        assert(pop_log_raw(token_from_address).is_none(), 'no more token_from events');
+        assert(pop_log_raw(buy_token_address).is_none(), 'no more buy_token events');
+        assert(pop_log_raw(sell_token_address).is_none(), 'no more sell_token events');
     }
 
     #[test]
@@ -375,35 +375,35 @@ mod MultiRouteSwap {
         fee.set_fees_recipient(fees_recipient);
         fee.set_fees_bps_0(20);
         fee.set_whitelisted_integrator(integrator, true);
-        let token_from = deploy_mock_token(beneficiary, 1000, 1);
-        let token_from_address = token_from.contract_address;
-        let token_to = deploy_mock_token(beneficiary, 0, 2);
-        let token_to_address = token_to.contract_address;
-        let token_from_amount = u256 { low: 1000, high: 0 };
-        let token_to_min_amount = u256 { low: 950, high: 0 };
-        let token_to_amount = u256 { low: 950, high: 0 };
+        let sell_token = deploy_mock_token(beneficiary, 1000, 1);
+        let sell_token_address = sell_token.contract_address;
+        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        let buy_token_address = buy_token.contract_address;
+        let sell_token_amount = u256 { low: 1000, high: 0 };
+        let buy_token_min_amount = u256 { low: 950, high: 0 };
+        let buy_token_amount = u256 { low: 950, high: 0 };
         let mut routes = ArrayTrait::new();
         routes
             .append(
                 Route {
-                    token_from: token_from_address,
-                    token_to: token_to_address,
+                    sell_token: sell_token_address,
+                    buy_token: buy_token_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 },
             );
         set_contract_address(beneficiary);
-        token_from.approve(exchange.contract_address, token_from_amount);
+        sell_token.approve(exchange.contract_address, sell_token_amount);
 
         // When
         let result = exchange
             .multi_route_swap(
-                token_from_address,
-                token_from_amount,
-                token_to_address,
-                token_to_amount,
-                token_to_min_amount,
+                sell_token_address,
+                sell_token_amount,
+                buy_token_address,
+                buy_token_amount,
+                buy_token_min_amount,
                 beneficiary,
                 0x64, // 1%, 100 bps
                 integrator,
@@ -416,9 +416,9 @@ mod MultiRouteSwap {
         let event: Swap = starknet::Event::deserialize(ref keys, ref data).unwrap();
         let expected_event = Swap {
             taker_address: beneficiary,
-            sell_address: token_from_address,
-            sell_amount: token_from_amount,
-            buy_address: token_to_address,
+            sell_address: sell_token_address,
+            sell_amount: sell_token_amount,
+            buy_address: buy_token_address,
             buy_amount: u256 { low: 990, high: 0 },
             beneficiary: beneficiary,
         };
@@ -427,20 +427,20 @@ mod MultiRouteSwap {
 
         // Verify transfers
         // Verify integrator's fees
-        let (mut keys, mut data) = pop_log_raw(token_to_address).unwrap();
+        let (mut keys, mut data) = pop_log_raw(buy_token_address).unwrap();
         let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
         let expected_event = Transfer { to: integrator, amount: 10_u256 };
         assert(event == expected_event, 'invalid token transfer');
 
         // Verify that beneficiary receives tokens to
-        let balance = token_to.balanceOf(beneficiary);
+        let balance = buy_token.balanceOf(beneficiary);
         assert(balance == 990_u256, 'Invalid beneficiary balance');
-        let (mut keys, mut data) = pop_log_raw(token_to_address).unwrap();
+        let (mut keys, mut data) = pop_log_raw(buy_token_address).unwrap();
         let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
         let expected_event = Transfer { to: beneficiary, amount: 990_u256 };
         assert(event == expected_event, 'Invalid beneficiary balance');
-        assert(pop_log_raw(token_to_address).is_none(), 'no more token_to events');
-        assert(pop_log_raw(token_from_address).is_none(), 'no more token_from events');
+        assert(pop_log_raw(buy_token_address).is_none(), 'no more buy_token events');
+        assert(pop_log_raw(sell_token_address).is_none(), 'no more sell_token events');
     }
 
     #[test]
@@ -451,35 +451,35 @@ mod MultiRouteSwap {
         let (exchange, ownable, _) = deploy_exchange();
         let beneficiary = contract_address_const::<0x12345>();
         set_contract_address(ownable.get_owner());
-        let token_from = deploy_mock_token(beneficiary, 1000, 1);
-        let token_from_address = token_from.contract_address;
-        let token_to = deploy_mock_token(beneficiary, 0, 2);
-        let token_to_address = token_to.contract_address;
-        let token_from_amount = u256 { low: 1000, high: 0 };
-        let token_to_min_amount = u256 { low: 950, high: 0 };
-        let token_to_amount = u256 { low: 950, high: 0 };
+        let sell_token = deploy_mock_token(beneficiary, 1000, 1);
+        let sell_token_address = sell_token.contract_address;
+        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        let buy_token_address = buy_token.contract_address;
+        let sell_token_amount = u256 { low: 1000, high: 0 };
+        let buy_token_min_amount = u256 { low: 950, high: 0 };
+        let buy_token_amount = u256 { low: 950, high: 0 };
         let mut routes = ArrayTrait::new();
         routes
             .append(
                 Route {
-                    token_from: token_from_address,
-                    token_to: token_to_address,
+                    sell_token: sell_token_address,
+                    buy_token: buy_token_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 },
             );
         set_contract_address(beneficiary);
-        token_from.approve(exchange.contract_address, token_from_amount);
+        sell_token.approve(exchange.contract_address, sell_token_amount);
 
         // When & Then
         exchange
             .multi_route_swap(
-                token_from_address,
-                token_from_amount,
-                token_to_address,
-                token_to_amount,
-                token_to_min_amount,
+                sell_token_address,
+                sell_token_amount,
+                buy_token_address,
+                buy_token_amount,
+                buy_token_min_amount,
                 beneficiary,
                 600,
                 contract_address_const::<0x111>(),
@@ -498,19 +498,19 @@ mod MultiRouteSwap {
         fee.set_fees_recipient(fees_recipient);
         fee.set_fees_bps_1(20);
         fee.set_fees_bps_0(10);
-        let token_from = deploy_mock_token(beneficiary, 1000, 1);
-        let token_from_address = token_from.contract_address;
-        let token_to = deploy_mock_token(beneficiary, 0, 2);
-        let token_to_address = token_to.contract_address;
-        let token_from_amount = u256 { low: 1000, high: 0 };
-        let token_to_min_amount = u256 { low: 950, high: 0 };
-        let token_to_amount = u256 { low: 950, high: 0 };
+        let sell_token = deploy_mock_token(beneficiary, 1000, 1);
+        let sell_token_address = sell_token.contract_address;
+        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        let buy_token_address = buy_token.contract_address;
+        let sell_token_amount = u256 { low: 1000, high: 0 };
+        let buy_token_min_amount = u256 { low: 950, high: 0 };
+        let buy_token_amount = u256 { low: 950, high: 0 };
         let mut routes = ArrayTrait::new();
         routes
             .append(
                 Route {
-                    token_from: token_from_address,
-                    token_to: token_to_address,
+                    sell_token: sell_token_address,
+                    buy_token: buy_token_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 60 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
@@ -519,24 +519,24 @@ mod MultiRouteSwap {
         routes
             .append(
                 Route {
-                    token_from: token_from_address,
-                    token_to: token_to_address,
+                    sell_token: sell_token_address,
+                    buy_token: buy_token_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 },
             );
         set_contract_address(beneficiary);
-        token_from.approve(exchange.contract_address, token_from_amount);
+        sell_token.approve(exchange.contract_address, sell_token_amount);
 
         // When
         let result = exchange
             .multi_route_swap(
-                token_from_address,
-                token_from_amount,
-                token_to_address,
-                token_to_amount,
-                token_to_min_amount,
+                sell_token_address,
+                sell_token_amount,
+                buy_token_address,
+                buy_token_amount,
+                buy_token_min_amount,
                 beneficiary,
                 0x64, // 1%, 100 bps
                 contract_address_const::<0x111>(),
@@ -550,9 +550,9 @@ mod MultiRouteSwap {
         let event: Swap = starknet::Event::deserialize(ref keys, ref data).unwrap();
         let expected_event = Swap {
             taker_address: beneficiary,
-            sell_address: token_from_address,
-            sell_amount: token_from_amount,
-            buy_address: token_to_address,
+            sell_address: sell_token_address,
+            sell_amount: sell_token_amount,
+            buy_address: buy_token_address,
             buy_amount: u256 { low: 988, high: 0 },
             beneficiary: beneficiary,
         };
@@ -562,26 +562,26 @@ mod MultiRouteSwap {
 
         // Verify transfers
         // Verify integrator's fees
-        let (mut keys, mut data) = pop_log_raw(token_to_address).unwrap();
+        let (mut keys, mut data) = pop_log_raw(buy_token_address).unwrap();
         let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
         let expected_event = Transfer { to: contract_address_const::<0x111>(), amount: 10_u256 };
         assert(event == expected_event, 'invalid token transfer');
 
         // Verify avnu's fees
-        let (mut keys, mut data) = pop_log_raw(token_to_address).unwrap();
+        let (mut keys, mut data) = pop_log_raw(buy_token_address).unwrap();
         let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
         let expected_event = Transfer { to: fees_recipient, amount: 2_u256 };
         assert(event == expected_event, 'invalid token transfer');
 
         // Verify that beneficiary receives tokens to
-        let balance = token_to.balanceOf(beneficiary);
+        let balance = buy_token.balanceOf(beneficiary);
         assert(balance == 988_u256, 'Invalid beneficiary balance');
-        let (mut keys, mut data) = pop_log_raw(token_to_address).unwrap();
+        let (mut keys, mut data) = pop_log_raw(buy_token_address).unwrap();
         let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
         let expected_event = Transfer { to: beneficiary, amount: 988_u256 };
         assert(event == expected_event, 'Invalid beneficiary balance');
-        assert(pop_log_raw(token_to_address).is_none(), 'no more token_to events');
-        assert(pop_log_raw(token_from_address).is_none(), 'no more token_from events');
+        assert(pop_log_raw(buy_token_address).is_none(), 'no more buy_token events');
+        assert(pop_log_raw(sell_token_address).is_none(), 'no more sell_token events');
     }
 
     #[test]
@@ -597,16 +597,16 @@ mod MultiRouteSwap {
         let token_4_address = deploy_mock_token(beneficiary, 0, 4).contract_address;
         let token_5 = deploy_mock_token(beneficiary, 0, 5);
         let token_5_address = token_5.contract_address;
-        let token_from_amount = u256 { low: 10, high: 0 };
-        let token_to_min_amount = u256 { low: 9, high: 0 };
-        let token_to_amount = u256 { low: 9, high: 0 };
+        let sell_token_amount = u256 { low: 10, high: 0 };
+        let buy_token_min_amount = u256 { low: 9, high: 0 };
+        let buy_token_amount = u256 { low: 9, high: 0 };
         let mut routes = ArrayTrait::new();
         let exchange_address = contract_address_const::<0x12>();
         routes
             .append(
                 Route {
-                    token_from: token_1_address,
-                    token_to: token_2_address,
+                    sell_token: token_1_address,
+                    buy_token: token_2_address,
                     exchange_address,
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
@@ -615,8 +615,8 @@ mod MultiRouteSwap {
         routes
             .append(
                 Route {
-                    token_from: token_2_address,
-                    token_to: token_2_address,
+                    sell_token: token_2_address,
+                    buy_token: token_2_address,
                     exchange_address,
                     percent: 33 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
@@ -625,8 +625,8 @@ mod MultiRouteSwap {
         routes
             .append(
                 Route {
-                    token_from: token_2_address,
-                    token_to: token_3_address,
+                    sell_token: token_2_address,
+                    buy_token: token_3_address,
                     exchange_address,
                     percent: 50 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
@@ -635,8 +635,8 @@ mod MultiRouteSwap {
         routes
             .append(
                 Route {
-                    token_from: token_2_address,
-                    token_to: token_4_address,
+                    sell_token: token_2_address,
+                    buy_token: token_4_address,
                     exchange_address,
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
@@ -645,8 +645,8 @@ mod MultiRouteSwap {
         routes
             .append(
                 Route {
-                    token_from: token_3_address,
-                    token_to: token_5_address,
+                    sell_token: token_3_address,
+                    buy_token: token_5_address,
                     exchange_address,
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
@@ -655,24 +655,24 @@ mod MultiRouteSwap {
         routes
             .append(
                 Route {
-                    token_from: token_4_address,
-                    token_to: token_5_address,
+                    sell_token: token_4_address,
+                    buy_token: token_5_address,
                     exchange_address,
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 },
             );
         set_contract_address(beneficiary);
-        token_1.approve(exchange.contract_address, token_from_amount);
+        token_1.approve(exchange.contract_address, sell_token_amount);
 
         // When
         let result = exchange
             .multi_route_swap(
                 token_1_address,
-                token_from_amount,
+                sell_token_amount,
                 token_5_address,
-                token_to_amount,
-                token_to_min_amount,
+                buy_token_amount,
+                buy_token_min_amount,
                 beneficiary,
                 0,
                 contract_address_const::<0x0>(),
@@ -686,7 +686,7 @@ mod MultiRouteSwap {
         let expected_event = Swap {
             taker_address: beneficiary,
             sell_address: token_1_address,
-            sell_amount: token_from_amount,
+            sell_amount: sell_token_amount,
             buy_address: token_5_address,
             buy_amount: u256 { low: 10, high: 0 },
             beneficiary: beneficiary,
@@ -715,25 +715,25 @@ mod MultiRouteSwap {
         // Given
         let (exchange, _, _) = deploy_exchange();
         let beneficiary = contract_address_const::<0x12345>();
-        let token_from = deploy_mock_token(beneficiary, 10, 1);
-        let token_from_address = token_from.contract_address;
-        let token_to = deploy_mock_token(beneficiary, 0, 2);
-        let token_to_address = token_to.contract_address;
-        let token_from_amount = u256 { low: 10, high: 0 };
-        let token_to_min_amount = u256 { low: 9, high: 0 };
-        let token_to_amount = u256 { low: 9, high: 0 };
+        let sell_token = deploy_mock_token(beneficiary, 10, 1);
+        let sell_token_address = sell_token.contract_address;
+        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        let buy_token_address = buy_token.contract_address;
+        let sell_token_amount = u256 { low: 10, high: 0 };
+        let buy_token_min_amount = u256 { low: 9, high: 0 };
+        let buy_token_amount = u256 { low: 9, high: 0 };
         let mut routes = ArrayTrait::new();
         set_contract_address(beneficiary);
-        token_from.approve(exchange.contract_address, token_from_amount);
+        sell_token.approve(exchange.contract_address, sell_token_amount);
 
         // When & Then
         exchange
             .multi_route_swap(
-                token_from_address,
-                token_from_amount,
-                token_to_address,
-                token_to_amount,
-                token_to_min_amount,
+                sell_token_address,
+                sell_token_amount,
+                buy_token_address,
+                buy_token_amount,
+                buy_token_min_amount,
                 beneficiary,
                 0,
                 contract_address_const::<0x0>(),
@@ -748,35 +748,35 @@ mod MultiRouteSwap {
         // Given
         let (exchange, _, _) = deploy_exchange();
         let beneficiary = contract_address_const::<0x12345>();
-        let token_from = deploy_mock_token(beneficiary, 10, 1);
-        let token_from_address = token_from.contract_address;
-        let token_to = deploy_mock_token(beneficiary, 0, 2);
-        let token_to_address = token_to.contract_address;
-        let token_from_amount = u256 { low: 10, high: 0 };
-        let token_to_min_amount = u256 { low: 9, high: 0 };
-        let token_to_amount = u256 { low: 9, high: 0 };
+        let sell_token = deploy_mock_token(beneficiary, 10, 1);
+        let sell_token_address = sell_token.contract_address;
+        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        let buy_token_address = buy_token.contract_address;
+        let sell_token_amount = u256 { low: 10, high: 0 };
+        let buy_token_min_amount = u256 { low: 9, high: 0 };
+        let buy_token_amount = u256 { low: 9, high: 0 };
         let mut routes = ArrayTrait::new();
         routes
             .append(
                 Route {
-                    token_from: token_from_address,
-                    token_to: token_to_address,
+                    sell_token: sell_token_address,
+                    buy_token: buy_token_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 101 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 },
             );
         set_contract_address(beneficiary);
-        token_from.approve(exchange.contract_address, token_from_amount);
+        sell_token.approve(exchange.contract_address, sell_token_amount);
 
         // When & Then
         exchange
             .multi_route_swap(
-                token_from_address,
-                token_from_amount,
-                token_to_address,
-                token_to_amount,
-                token_to_min_amount,
+                sell_token_address,
+                sell_token_amount,
+                buy_token_address,
+                buy_token_amount,
+                buy_token_min_amount,
                 beneficiary,
                 0,
                 contract_address_const::<0x0>(),
@@ -791,35 +791,35 @@ mod MultiRouteSwap {
         // Given
         let (exchange, _, _) = deploy_exchange();
         let beneficiary = contract_address_const::<0x12345>();
-        let token_from = deploy_mock_token(beneficiary, 10, 1);
-        let token_from_address = token_from.contract_address;
-        let token_to = deploy_mock_token(beneficiary, 0, 2);
-        let token_to_address = token_to.contract_address;
-        let token_from_amount = u256 { low: 10, high: 0 };
-        let token_to_min_amount = u256 { low: 9, high: 0 };
-        let token_to_amount = u256 { low: 9, high: 0 };
+        let sell_token = deploy_mock_token(beneficiary, 10, 1);
+        let sell_token_address = sell_token.contract_address;
+        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        let buy_token_address = buy_token.contract_address;
+        let sell_token_amount = u256 { low: 10, high: 0 };
+        let buy_token_min_amount = u256 { low: 9, high: 0 };
+        let buy_token_amount = u256 { low: 9, high: 0 };
         let mut routes = ArrayTrait::new();
         routes
             .append(
                 Route {
-                    token_from: token_from_address,
-                    token_to: token_to_address,
+                    sell_token: sell_token_address,
+                    buy_token: buy_token_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 0 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 },
             );
         set_contract_address(beneficiary);
-        token_from.approve(exchange.contract_address, token_from_amount);
+        sell_token.approve(exchange.contract_address, sell_token_amount);
 
         // When & Then
         exchange
             .multi_route_swap(
-                token_from_address,
-                token_from_amount,
-                token_to_address,
-                token_to_amount,
-                token_to_min_amount,
+                sell_token_address,
+                sell_token_amount,
+                buy_token_address,
+                buy_token_amount,
+                buy_token_min_amount,
                 beneficiary,
                 0,
                 contract_address_const::<0x0>(),
@@ -830,41 +830,41 @@ mod MultiRouteSwap {
     #[test]
     #[should_panic(expected: ('Invalid token from', 'ENTRYPOINT_FAILED'))]
     #[available_gas(20000000)]
-    fn should_throw_error_when_first_token_from_is_not_token_from() {
+    fn should_throw_error_when_first_sell_token_is_not_sell_token() {
         // Given
         let (exchange, _, _) = deploy_exchange();
         let beneficiary = contract_address_const::<0x12345>();
-        let token_from = deploy_mock_token(beneficiary, 10, 1);
+        let sell_token = deploy_mock_token(beneficiary, 10, 1);
 
-        let token_from_address = token_from.contract_address;
-        let token_from_address_2 = deploy_mock_token(beneficiary, 10, 2).contract_address;
-        let token_to = deploy_mock_token(beneficiary, 0, 2);
-        let token_to_address = token_to.contract_address;
-        let token_from_amount = u256 { low: 10, high: 0 };
-        let token_to_min_amount = u256 { low: 9, high: 0 };
-        let token_to_amount = u256 { low: 9, high: 0 };
+        let sell_token_address = sell_token.contract_address;
+        let sell_token_address_2 = deploy_mock_token(beneficiary, 10, 2).contract_address;
+        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        let buy_token_address = buy_token.contract_address;
+        let sell_token_amount = u256 { low: 10, high: 0 };
+        let buy_token_min_amount = u256 { low: 9, high: 0 };
+        let buy_token_amount = u256 { low: 9, high: 0 };
         let mut routes = ArrayTrait::new();
         routes
             .append(
                 Route {
-                    token_from: token_from_address_2,
-                    token_to: token_to_address,
+                    sell_token: sell_token_address_2,
+                    buy_token: buy_token_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 },
             );
         set_contract_address(beneficiary);
-        token_from.approve(exchange.contract_address, token_from_amount);
+        sell_token.approve(exchange.contract_address, sell_token_amount);
 
         // When & Then
         exchange
             .multi_route_swap(
-                token_from_address,
-                token_from_amount,
-                token_to_address,
-                token_to_amount,
-                token_to_min_amount,
+                sell_token_address,
+                sell_token_amount,
+                buy_token_address,
+                buy_token_amount,
+                buy_token_min_amount,
                 beneficiary,
                 0,
                 contract_address_const::<0x0>(),
@@ -875,7 +875,7 @@ mod MultiRouteSwap {
     #[test]
     #[available_gas(20000000)]
     #[should_panic(expected: ('Invalid token to', 'ENTRYPOINT_FAILED'))]
-    fn should_throw_error_when_last_token_to_is_not_token_to() {
+    fn should_throw_error_when_last_buy_token_is_not_buy_token() {
         // Given
         let (exchange, _, _) = deploy_exchange();
         let beneficiary = contract_address_const::<0x12345>();
@@ -886,16 +886,16 @@ mod MultiRouteSwap {
         let token_4_address = deploy_mock_token(beneficiary, 0, 4).contract_address;
         let token_5_address = deploy_mock_token(beneficiary, 0, 5).contract_address;
         let beneficiary = contract_address_const::<0x12345>();
-        let token_from_amount = u256 { low: 10, high: 0 };
-        let token_to_min_amount = u256 { low: 9, high: 0 };
-        let token_to_amount = u256 { low: 9, high: 0 };
+        let sell_token_amount = u256 { low: 10, high: 0 };
+        let buy_token_min_amount = u256 { low: 9, high: 0 };
+        let buy_token_amount = u256 { low: 9, high: 0 };
         let mut routes = ArrayTrait::new();
         let exchange_address = contract_address_const::<0x12>();
         routes
             .append(
                 Route {
-                    token_from: token_1_address,
-                    token_to: token_2_address,
+                    sell_token: token_1_address,
+                    buy_token: token_2_address,
                     exchange_address,
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
@@ -904,8 +904,8 @@ mod MultiRouteSwap {
         routes
             .append(
                 Route {
-                    token_from: token_2_address,
-                    token_to: token_2_address,
+                    sell_token: token_2_address,
+                    buy_token: token_2_address,
                     exchange_address,
                     percent: 33 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
@@ -914,8 +914,8 @@ mod MultiRouteSwap {
         routes
             .append(
                 Route {
-                    token_from: token_2_address,
-                    token_to: token_3_address,
+                    sell_token: token_2_address,
+                    buy_token: token_3_address,
                     exchange_address,
                     percent: 50 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
@@ -924,8 +924,8 @@ mod MultiRouteSwap {
         routes
             .append(
                 Route {
-                    token_from: token_2_address,
-                    token_to: token_4_address,
+                    sell_token: token_2_address,
+                    buy_token: token_4_address,
                     exchange_address,
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
@@ -934,8 +934,8 @@ mod MultiRouteSwap {
         routes
             .append(
                 Route {
-                    token_from: token_3_address,
-                    token_to: token_5_address,
+                    sell_token: token_3_address,
+                    buy_token: token_5_address,
                     exchange_address,
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
@@ -944,24 +944,24 @@ mod MultiRouteSwap {
         routes
             .append(
                 Route {
-                    token_from: token_4_address,
-                    token_to: token_3_address,
+                    sell_token: token_4_address,
+                    buy_token: token_3_address,
                     exchange_address,
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 },
             );
         set_contract_address(beneficiary);
-        token_1.approve(exchange.contract_address, token_from_amount);
+        token_1.approve(exchange.contract_address, sell_token_amount);
 
         // When & Then
         exchange
             .multi_route_swap(
                 token_1_address,
-                token_from_amount,
+                sell_token_amount,
                 token_5_address,
-                token_to_amount,
-                token_to_min_amount,
+                buy_token_amount,
+                buy_token_min_amount,
                 beneficiary,
                 0,
                 contract_address_const::<0x0>(),
@@ -976,35 +976,35 @@ mod MultiRouteSwap {
         // Given
         let (exchange, _, _) = deploy_exchange();
         let beneficiary = contract_address_const::<0x12345>();
-        let token_from = deploy_mock_token(beneficiary, 10, 1);
-        let token_from_address = token_from.contract_address;
-        let token_to = deploy_mock_token(beneficiary, 0, 2);
-        let token_to_address = token_to.contract_address;
-        let token_from_amount = u256 { low: 10, high: 0 };
-        let token_to_min_amount = u256 { low: 9, high: 0 };
-        let token_to_amount = u256 { low: 9, high: 0 };
+        let sell_token = deploy_mock_token(beneficiary, 10, 1);
+        let sell_token_address = sell_token.contract_address;
+        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        let buy_token_address = buy_token.contract_address;
+        let sell_token_amount = u256 { low: 10, high: 0 };
+        let buy_token_min_amount = u256 { low: 9, high: 0 };
+        let buy_token_amount = u256 { low: 9, high: 0 };
         let mut routes = ArrayTrait::new();
         routes
             .append(
                 Route {
-                    token_from: token_from_address,
-                    token_to: token_to_address,
+                    sell_token: sell_token_address,
+                    buy_token: buy_token_address,
                     exchange_address: contract_address_const::<0x10>(),
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 },
             );
         set_contract_address(beneficiary);
-        token_from.approve(exchange.contract_address, token_from_amount);
+        sell_token.approve(exchange.contract_address, sell_token_amount);
 
         // When & Then
         exchange
             .multi_route_swap(
-                token_from_address,
-                token_from_amount,
-                token_to_address,
-                token_to_amount,
-                token_to_min_amount,
+                sell_token_address,
+                sell_token_amount,
+                buy_token_address,
+                buy_token_amount,
+                buy_token_min_amount,
                 beneficiary,
                 0,
                 contract_address_const::<0x0>(),
@@ -1019,35 +1019,35 @@ mod MultiRouteSwap {
         // Given
         let (exchange, _, _) = deploy_exchange();
         let beneficiary = contract_address_const::<0x12345>();
-        let token_from = deploy_mock_token(beneficiary, 10, 1);
-        let token_from_address = token_from.contract_address;
-        let token_to = deploy_mock_token(beneficiary, 0, 2);
-        let token_to_address = token_to.contract_address;
-        let token_from_amount = u256 { low: 10, high: 0 };
-        let token_to_min_amount = u256 { low: 11, high: 0 };
-        let token_to_amount = u256 { low: 11, high: 0 };
+        let sell_token = deploy_mock_token(beneficiary, 10, 1);
+        let sell_token_address = sell_token.contract_address;
+        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        let buy_token_address = buy_token.contract_address;
+        let sell_token_amount = u256 { low: 10, high: 0 };
+        let buy_token_min_amount = u256 { low: 11, high: 0 };
+        let buy_token_amount = u256 { low: 11, high: 0 };
         let mut routes = ArrayTrait::new();
         routes
             .append(
                 Route {
-                    token_from: token_from_address,
-                    token_to: token_to_address,
+                    sell_token: sell_token_address,
+                    buy_token: buy_token_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 },
             );
         set_contract_address(beneficiary);
-        token_from.approve(exchange.contract_address, token_from_amount);
+        sell_token.approve(exchange.contract_address, sell_token_amount);
 
         // When & Then
         exchange
             .multi_route_swap(
-                token_from_address,
-                token_from_amount,
-                token_to_address,
-                token_to_amount,
-                token_to_min_amount,
+                sell_token_address,
+                sell_token_amount,
+                buy_token_address,
+                buy_token_amount,
+                buy_token_min_amount,
                 beneficiary,
                 0,
                 contract_address_const::<0x0>(),
@@ -1062,19 +1062,19 @@ mod MultiRouteSwap {
         // Given
         let (exchange, _, _) = deploy_exchange();
         let beneficiary = contract_address_const::<0x12345>();
-        let token_from = deploy_mock_token(beneficiary, 10, 1);
-        let token_from_address = token_from.contract_address;
-        let token_to = deploy_mock_token(beneficiary, 0, 2);
-        let token_to_address = token_to.contract_address;
-        let token_from_amount = u256 { low: 10, high: 0 };
-        let token_to_min_amount = u256 { low: 9, high: 0 };
-        let token_to_amount = u256 { low: 9, high: 0 };
+        let sell_token = deploy_mock_token(beneficiary, 10, 1);
+        let sell_token_address = sell_token.contract_address;
+        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        let buy_token_address = buy_token.contract_address;
+        let sell_token_amount = u256 { low: 10, high: 0 };
+        let buy_token_min_amount = u256 { low: 9, high: 0 };
+        let buy_token_amount = u256 { low: 9, high: 0 };
         let mut routes = ArrayTrait::new();
         routes
             .append(
                 Route {
-                    token_from: token_from_address,
-                    token_to: token_to_address,
+                    sell_token: sell_token_address,
+                    buy_token: buy_token_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
@@ -1084,11 +1084,11 @@ mod MultiRouteSwap {
         // When & Then
         exchange
             .multi_route_swap(
-                token_from_address,
-                token_from_amount,
-                token_to_address,
-                token_to_amount,
-                token_to_min_amount,
+                sell_token_address,
+                sell_token_amount,
+                buy_token_address,
+                buy_token_amount,
+                buy_token_min_amount,
                 beneficiary,
                 0,
                 contract_address_const::<0x0>(),
@@ -1107,36 +1107,36 @@ mod MultiRouteSwap {
         let config = TokenFeeConfig { weight: 10 };
         fee.set_fees_recipient(fees_recipient);
         fee.set_fees_bps_0(20);
-        let token_from = deploy_mock_token(beneficiary, 1000, 1);
-        let token_from_address = token_from.contract_address;
-        let token_to = deploy_mock_token(beneficiary, 0, 2);
-        let token_to_address = token_to.contract_address;
-        fee.set_token_fee_config(token_from_address, config); // now policy should be FeeOnSell
-        let token_from_amount = u256 { low: 1000, high: 0 };
-        let token_to_min_amount = u256 { low: 950, high: 0 };
-        let token_to_amount = u256 { low: 950, high: 0 };
+        let sell_token = deploy_mock_token(beneficiary, 1000, 1);
+        let sell_token_address = sell_token.contract_address;
+        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        let buy_token_address = buy_token.contract_address;
+        fee.set_token_fee_config(sell_token_address, config); // now policy should be FeeOnSell
+        let sell_token_amount = u256 { low: 1000, high: 0 };
+        let buy_token_min_amount = u256 { low: 950, high: 0 };
+        let buy_token_amount = u256 { low: 950, high: 0 };
         let mut routes = ArrayTrait::new();
         routes
             .append(
                 Route {
-                    token_from: token_from_address,
-                    token_to: token_to_address,
+                    sell_token: sell_token_address,
+                    buy_token: buy_token_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 },
             );
         set_contract_address(beneficiary);
-        token_from.approve(exchange.contract_address, token_from_amount);
+        sell_token.approve(exchange.contract_address, sell_token_amount);
 
         // When
         let result = exchange
             .multi_route_swap(
-                token_from_address,
-                token_from_amount,
-                token_to_address,
-                token_to_amount,
-                token_to_min_amount,
+                sell_token_address,
+                sell_token_amount,
+                buy_token_address,
+                buy_token_amount,
+                buy_token_min_amount,
                 beneficiary,
                 0x64, // 1%, 100 bps
                 contract_address_const::<0x111>(),
@@ -1149,9 +1149,9 @@ mod MultiRouteSwap {
         let event: Swap = starknet::Event::deserialize(ref keys, ref data).unwrap();
         let expected_event = Swap {
             taker_address: beneficiary,
-            sell_address: token_from_address,
-            sell_amount: token_from_amount,
-            buy_address: token_to_address,
+            sell_address: sell_token_address,
+            sell_amount: sell_token_amount,
+            buy_address: buy_token_address,
             buy_amount: u256 { low: 988, high: 0 },
             beneficiary: beneficiary,
         };
@@ -1159,29 +1159,29 @@ mod MultiRouteSwap {
         assert(pop_log_raw(exchange.contract_address).is_none(), 'no more contract events');
 
         // Verify transfers
-        // Verify integrator's fees at token_from address since policy was FeeOnSell
-        let (mut keys, mut data) = pop_log_raw(token_from_address).unwrap();
+        // Verify integrator's fees at sell_token address since policy was FeeOnSell
+        let (mut keys, mut data) = pop_log_raw(sell_token_address).unwrap();
         let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
         let expected_event = Transfer { to: contract_address_const::<0x111>(), amount: 10_u256 };
         assert(event == expected_event, 'invalid token transfer');
-        assert(token_from.balanceOf(contract_address_const::<0x111>()) == 10_u256, 'invalid token balance');
+        assert(sell_token.balanceOf(contract_address_const::<0x111>()) == 10_u256, 'invalid token balance');
 
-        // Verify avnu's fees at token_from addres since policy was FeeOnSell
-        let (mut keys, mut data) = pop_log_raw(token_from_address).unwrap();
+        // Verify avnu's fees at sell_token addres since policy was FeeOnSell
+        let (mut keys, mut data) = pop_log_raw(sell_token_address).unwrap();
         let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
         let expected_event = Transfer { to: fees_recipient, amount: 2_u256 };
         assert(event == expected_event, 'invalid token transfer');
-        assert(token_from.balanceOf(fees_recipient) == 2_u256, 'invalid token balance');
+        assert(sell_token.balanceOf(fees_recipient) == 2_u256, 'invalid token balance');
 
         // Verify that beneficiary receives tokens to
-        let balance = token_to.balanceOf(beneficiary);
+        let balance = buy_token.balanceOf(beneficiary);
         assert(balance == 988_u256, 'Invalid beneficiary balance');
-        let (mut keys, mut data) = pop_log_raw(token_to_address).unwrap();
+        let (mut keys, mut data) = pop_log_raw(buy_token_address).unwrap();
         let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
         let expected_event = Transfer { to: beneficiary, amount: 988_u256 };
         assert(event == expected_event, 'Invalid beneficiary balance');
-        assert(pop_log_raw(token_to_address).is_none(), 'no more token_to events');
-        assert(pop_log_raw(token_from_address).is_none(), 'no more token_from events');
+        assert(pop_log_raw(buy_token_address).is_none(), 'no more buy_token events');
+        assert(pop_log_raw(sell_token_address).is_none(), 'no more sell_token events');
     }
 
     #[test]
@@ -1196,37 +1196,37 @@ mod MultiRouteSwap {
         fee.set_fees_recipient(fees_recipient);
         fee.set_fees_bps_0(20);
         fee.set_whitelisted_integrator(integrator, true);
-        let token_from = deploy_mock_token(beneficiary, 1000, 1);
-        let token_from_address = token_from.contract_address;
+        let sell_token = deploy_mock_token(beneficiary, 1000, 1);
+        let sell_token_address = sell_token.contract_address;
         let config = TokenFeeConfig { weight: 10 };
-        fee.set_token_fee_config(token_from_address, config); // now policy should be FeeOnSell
-        let token_to = deploy_mock_token(beneficiary, 0, 2);
-        let token_to_address = token_to.contract_address;
-        let token_from_amount = u256 { low: 1000, high: 0 };
-        let token_to_min_amount = u256 { low: 950, high: 0 };
-        let token_to_amount = u256 { low: 950, high: 0 };
+        fee.set_token_fee_config(sell_token_address, config); // now policy should be FeeOnSell
+        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        let buy_token_address = buy_token.contract_address;
+        let sell_token_amount = u256 { low: 1000, high: 0 };
+        let buy_token_min_amount = u256 { low: 950, high: 0 };
+        let buy_token_amount = u256 { low: 950, high: 0 };
         let mut routes = ArrayTrait::new();
         routes
             .append(
                 Route {
-                    token_from: token_from_address,
-                    token_to: token_to_address,
+                    sell_token: sell_token_address,
+                    buy_token: buy_token_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 },
             );
         set_contract_address(beneficiary);
-        token_from.approve(exchange.contract_address, token_from_amount);
+        sell_token.approve(exchange.contract_address, sell_token_amount);
 
         // When
         let result = exchange
             .multi_route_swap(
-                token_from_address,
-                token_from_amount,
-                token_to_address,
-                token_to_amount,
-                token_to_min_amount,
+                sell_token_address,
+                sell_token_amount,
+                buy_token_address,
+                buy_token_amount,
+                buy_token_min_amount,
                 beneficiary,
                 0x64, // 1%, 100 bps
                 integrator,
@@ -1239,9 +1239,9 @@ mod MultiRouteSwap {
         let event: Swap = starknet::Event::deserialize(ref keys, ref data).unwrap();
         let expected_event = Swap {
             taker_address: beneficiary,
-            sell_address: token_from_address,
-            sell_amount: token_from_amount,
-            buy_address: token_to_address,
+            sell_address: sell_token_address,
+            sell_amount: sell_token_amount,
+            buy_address: buy_token_address,
             buy_amount: u256 { low: 990, high: 0 },
             beneficiary: beneficiary,
         };
@@ -1249,22 +1249,22 @@ mod MultiRouteSwap {
         assert(pop_log_raw(exchange.contract_address).is_none(), 'no more contract events');
 
         // Verify transfers
-        // Verify integrator's fees on token_from address since policy was FeeOnSell
-        let (mut keys, mut data) = pop_log_raw(token_from_address).unwrap();
+        // Verify integrator's fees on sell_token address since policy was FeeOnSell
+        let (mut keys, mut data) = pop_log_raw(sell_token_address).unwrap();
         let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
         let expected_event = Transfer { to: integrator, amount: 10_u256 };
         assert(event == expected_event, 'invalid token transfer');
-        assert(token_from.balanceOf(integrator) == 10_u256, 'invalid token balance');
+        assert(sell_token.balanceOf(integrator) == 10_u256, 'invalid token balance');
 
         // Verify that beneficiary receives tokens to
-        let balance = token_to.balanceOf(beneficiary);
+        let balance = buy_token.balanceOf(beneficiary);
         assert(balance == 990_u256, 'Invalid beneficiary balance');
-        let (mut keys, mut data) = pop_log_raw(token_to_address).unwrap();
+        let (mut keys, mut data) = pop_log_raw(buy_token_address).unwrap();
         let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
         let expected_event = Transfer { to: beneficiary, amount: 990_u256 };
         assert(event == expected_event, 'Invalid beneficiary balance');
-        assert(pop_log_raw(token_to_address).is_none(), 'no more token_to events');
-        assert(pop_log_raw(token_from_address).is_none(), 'no more token_from events');
+        assert(pop_log_raw(buy_token_address).is_none(), 'no more buy_token events');
+        assert(pop_log_raw(sell_token_address).is_none(), 'no more sell_token events');
     }
 
     // Integrator is whitelisted but integrator fee is less than avnu fee
@@ -1280,33 +1280,33 @@ mod MultiRouteSwap {
         fee.set_fees_recipient(fees_recipient);
         fee.set_fees_bps_0(50);
         fee.set_whitelisted_integrator(integrator, true);
-        let token_from = deploy_mock_token(beneficiary, 1000, 1);
-        let token_from_address = token_from.contract_address;
+        let sell_token = deploy_mock_token(beneficiary, 1000, 1);
+        let sell_token_address = sell_token.contract_address;
         let config = TokenFeeConfig { weight: 10 };
-        fee.set_token_fee_config(token_from_address, config); // now policy should be FeeOnSell
-        let token_to = deploy_mock_token(beneficiary, 0, 2);
-        let token_to_address = token_to.contract_address;
-        let token_from_amount = u256 { low: 1000, high: 0 };
-        let token_to_min_amount = u256 { low: 950, high: 0 };
-        let token_to_amount = u256 { low: 950, high: 0 };
+        fee.set_token_fee_config(sell_token_address, config); // now policy should be FeeOnSell
+        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        let buy_token_address = buy_token.contract_address;
+        let sell_token_amount = u256 { low: 1000, high: 0 };
+        let buy_token_min_amount = u256 { low: 950, high: 0 };
+        let buy_token_amount = u256 { low: 950, high: 0 };
         let mut routes = ArrayTrait::new();
         routes
             .append(
                 Route {
-                    token_from: token_from_address,
-                    token_to: token_to_address,
+                    sell_token: sell_token_address,
+                    buy_token: buy_token_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 },
             );
         set_contract_address(beneficiary);
-        token_from.approve(exchange.contract_address, token_from_amount);
+        sell_token.approve(exchange.contract_address, sell_token_amount);
 
         // When
         let result = exchange
             .multi_route_swap(
-                token_from_address, token_from_amount, token_to_address, token_to_amount, token_to_min_amount, beneficiary, 20, integrator, routes,
+                sell_token_address, sell_token_amount, buy_token_address, buy_token_amount, buy_token_min_amount, beneficiary, 20, integrator, routes,
             );
 
         // Then
@@ -1315,9 +1315,9 @@ mod MultiRouteSwap {
         let event: Swap = starknet::Event::deserialize(ref keys, ref data).unwrap();
         let expected_event = Swap {
             taker_address: beneficiary,
-            sell_address: token_from_address,
-            sell_amount: token_from_amount,
-            buy_address: token_to_address,
+            sell_address: sell_token_address,
+            sell_amount: sell_token_amount,
+            buy_address: buy_token_address,
             buy_amount: u256 { low: 993, high: 0 },
             beneficiary: beneficiary,
         };
@@ -1326,29 +1326,29 @@ mod MultiRouteSwap {
         assert(pop_log_raw(exchange.contract_address).is_none(), 'no more contract events');
 
         // Verify transfers
-        // Verify integrator's fees on token_from address since policy was FeeOnSell
-        let (mut keys, mut data) = pop_log_raw(token_from_address).unwrap();
+        // Verify integrator's fees on sell_token address since policy was FeeOnSell
+        let (mut keys, mut data) = pop_log_raw(sell_token_address).unwrap();
         let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
         let expected_event = Transfer { to: integrator, amount: 2_u256 };
         assert(event == expected_event, 'invalid token transfer');
-        assert(token_from.balanceOf(integrator) == 2_u256, 'invalid token balance');
+        assert(sell_token.balanceOf(integrator) == 2_u256, 'invalid token balance');
 
-        // Verify avnu's fees at token_from addres since policy was FeeOnSell
-        let (mut keys, mut data) = pop_log_raw(token_from_address).unwrap();
+        // Verify avnu's fees at sell_token addres since policy was FeeOnSell
+        let (mut keys, mut data) = pop_log_raw(sell_token_address).unwrap();
         let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
         let expected_event = Transfer { to: fees_recipient, amount: 5_u256 };
         assert(event == expected_event, 'invalid token transfer');
-        assert(token_from.balanceOf(fees_recipient) == 5_u256, 'invalid token balance');
+        assert(sell_token.balanceOf(fees_recipient) == 5_u256, 'invalid token balance');
 
         // Verify that beneficiary receives tokens to
-        let balance = token_to.balanceOf(beneficiary);
+        let balance = buy_token.balanceOf(beneficiary);
         assert(balance == 993_u256, 'Invalid beneficiary balance');
-        let (mut keys, mut data) = pop_log_raw(token_to_address).unwrap();
+        let (mut keys, mut data) = pop_log_raw(buy_token_address).unwrap();
         let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
         let expected_event = Transfer { to: beneficiary, amount: 993_u256 };
         assert(event == expected_event, 'Invalid beneficiary balance');
-        assert(pop_log_raw(token_to_address).is_none(), 'no more token_to events');
-        assert(pop_log_raw(token_from_address).is_none(), 'no more token_from events');
+        assert(pop_log_raw(buy_token_address).is_none(), 'no more buy_token events');
+        assert(pop_log_raw(sell_token_address).is_none(), 'no more sell_token events');
     }
 
     #[test]
@@ -1362,23 +1362,23 @@ mod MultiRouteSwap {
         fee.set_fees_recipient(fees_recipient);
         fee.set_fees_bps_1(20);
         fee.set_fees_bps_0(10);
-        let token_from = deploy_mock_token(beneficiary, 1000, 1);
-        let token_from_address = token_from.contract_address;
+        let sell_token = deploy_mock_token(beneficiary, 1000, 1);
+        let sell_token_address = sell_token.contract_address;
         let config = TokenFeeConfig { weight: 20 };
-        fee.set_token_fee_config(token_from_address, config); // now policy should be FeeOnSell
-        let token_to = deploy_mock_token(beneficiary, 0, 2);
-        let token_to_address = token_to.contract_address;
+        fee.set_token_fee_config(sell_token_address, config); // now policy should be FeeOnSell
+        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        let buy_token_address = buy_token.contract_address;
         let config = TokenFeeConfig { weight: 10 };
-        fee.set_token_fee_config(token_to_address, config);
-        let token_from_amount = u256 { low: 1000, high: 0 };
-        let token_to_min_amount = u256 { low: 950, high: 0 };
-        let token_to_amount = u256 { low: 950, high: 0 };
+        fee.set_token_fee_config(buy_token_address, config);
+        let sell_token_amount = u256 { low: 1000, high: 0 };
+        let buy_token_min_amount = u256 { low: 950, high: 0 };
+        let buy_token_amount = u256 { low: 950, high: 0 };
         let mut routes = ArrayTrait::new();
         routes
             .append(
                 Route {
-                    token_from: token_from_address,
-                    token_to: token_to_address,
+                    sell_token: sell_token_address,
+                    buy_token: buy_token_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 60 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
@@ -1387,24 +1387,24 @@ mod MultiRouteSwap {
         routes
             .append(
                 Route {
-                    token_from: token_from_address,
-                    token_to: token_to_address,
+                    sell_token: sell_token_address,
+                    buy_token: buy_token_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 },
             );
         set_contract_address(beneficiary);
-        token_from.approve(exchange.contract_address, token_from_amount);
+        sell_token.approve(exchange.contract_address, sell_token_amount);
 
         // When
         let result = exchange
             .multi_route_swap(
-                token_from_address,
-                token_from_amount,
-                token_to_address,
-                token_to_amount,
-                token_to_min_amount,
+                sell_token_address,
+                sell_token_amount,
+                buy_token_address,
+                buy_token_amount,
+                buy_token_min_amount,
                 beneficiary,
                 0x64, // 1%, 100 bps
                 contract_address_const::<0x111>(),
@@ -1418,9 +1418,9 @@ mod MultiRouteSwap {
         let event: Swap = starknet::Event::deserialize(ref keys, ref data).unwrap();
         let expected_event = Swap {
             taker_address: beneficiary,
-            sell_address: token_from_address,
-            sell_amount: token_from_amount,
-            buy_address: token_to_address,
+            sell_address: sell_token_address,
+            sell_amount: sell_token_amount,
+            buy_address: buy_token_address,
             buy_amount: u256 { low: 988, high: 0 },
             beneficiary: beneficiary,
         };
@@ -1430,26 +1430,26 @@ mod MultiRouteSwap {
 
         // Verify transfers
         // Verify integrator's fees
-        let (mut keys, mut data) = pop_log_raw(token_from_address).unwrap();
+        let (mut keys, mut data) = pop_log_raw(sell_token_address).unwrap();
         let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
         let expected_event = Transfer { to: contract_address_const::<0x111>(), amount: 10_u256 };
         assert(event == expected_event, 'invalid token transfer');
 
         // Verify avnu's fees
-        let (mut keys, mut data) = pop_log_raw(token_from_address).unwrap();
+        let (mut keys, mut data) = pop_log_raw(sell_token_address).unwrap();
         let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
         let expected_event = Transfer { to: fees_recipient, amount: 2_u256 };
         assert(event == expected_event, 'invalid token transfer');
 
         // Verify that beneficiary receives tokens to
-        let balance = token_to.balanceOf(beneficiary);
+        let balance = buy_token.balanceOf(beneficiary);
         assert(balance == 988_u256, 'Invalid beneficiary balance');
-        let (mut keys, mut data) = pop_log_raw(token_to_address).unwrap();
+        let (mut keys, mut data) = pop_log_raw(buy_token_address).unwrap();
         let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
         let expected_event = Transfer { to: beneficiary, amount: 988_u256 };
         assert(event == expected_event, 'Invalid beneficiary balance');
-        assert(pop_log_raw(token_to_address).is_none(), 'no more token_to events');
-        assert(pop_log_raw(token_from_address).is_none(), 'no more token_from events');
+        assert(pop_log_raw(buy_token_address).is_none(), 'no more buy_token events');
+        assert(pop_log_raw(sell_token_address).is_none(), 'no more sell_token events');
     }
 }
 
@@ -1461,11 +1461,11 @@ mod SwapExactTokenTo {
 
     struct SwapScenario {
         exchange: IExchangeDispatcher,
-        token_from_address: ContractAddress,
-        token_from_amount: u256,
-        token_to_address: ContractAddress,
-        token_to_amount: u256,
-        token_to_min_amount: u256,
+        sell_token_address: ContractAddress,
+        sell_token_amount: u256,
+        buy_token_address: ContractAddress,
+        buy_token_amount: u256,
+        buy_token_min_amount: u256,
         beneficiary: ContractAddress,
         routes: Array<Route>,
         expected_event: Swap,
@@ -1473,39 +1473,39 @@ mod SwapExactTokenTo {
 
     #[test]
     #[available_gas(20000000)]
-    fn should_swap_when_setting_token_to() {
+    fn should_swap_when_setting_buy_token() {
         // Given
         let (exchange, ownable, fee) = deploy_exchange();
         let beneficiary = contract_address_const::<0x12345>();
-        let token_from = deploy_mock_token(beneficiary, 120000, 1);
-        let token_from_address = token_from.contract_address;
-        let token_to = deploy_mock_token(beneficiary, 0, 2);
-        let token_to_address = token_to.contract_address;
+        let sell_token = deploy_mock_token(beneficiary, 120000, 1);
+        let sell_token_address = sell_token.contract_address;
+        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        let buy_token_address = buy_token.contract_address;
         set_contract_address(ownable.get_owner());
         let fees_recipient = contract_address_const::<0x1111>();
         fee.set_fees_recipient(fees_recipient);
         fee.set_swap_exact_token_to_fees_bps(5_u128);
-        let token_from_max_amount = u256 { low: 120000, high: 0 };
-        let token_from_amount = u256 { low: 8000, high: 0 };
-        let token_to_amount = u256 { low: 100000, high: 0 };
+        let sell_token_max_amount = u256 { low: 120000, high: 0 };
+        let sell_token_amount = u256 { low: 8000, high: 0 };
+        let buy_token_amount = u256 { low: 100000, high: 0 };
         let mut routes = ArrayTrait::new();
         routes
             .append(
                 Route {
-                    token_from: token_from_address,
-                    token_to: token_to_address,
+                    sell_token: sell_token_address,
+                    buy_token: buy_token_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 },
             );
         set_contract_address(beneficiary);
-        token_from.approve(exchange.contract_address, token_from_max_amount);
+        sell_token.approve(exchange.contract_address, sell_token_max_amount);
 
         // When
         let result = exchange
             .swap_exact_token_to(
-                token_from_address, token_from_amount, token_from_max_amount, token_to_address, token_to_amount, beneficiary, routes,
+                sell_token_address, sell_token_amount, sell_token_max_amount, buy_token_address, buy_token_amount, beneficiary, routes,
             );
 
         // Then
@@ -1514,70 +1514,70 @@ mod SwapExactTokenTo {
         let event: Swap = starknet::Event::deserialize(ref keys, ref data).unwrap();
         let expected_event = Swap {
             taker_address: beneficiary,
-            sell_address: token_from_address,
+            sell_address: sell_token_address,
             sell_amount: 100050,
-            buy_address: token_to_address,
-            buy_amount: token_to_amount,
+            buy_address: buy_token_address,
+            buy_amount: buy_token_amount,
             beneficiary: beneficiary,
         };
         assert(event == expected_event, 'invalid swap event');
         assert(pop_log_raw(exchange.contract_address).is_none(), 'no more events');
 
         // Verify that beneficiary receives tokens to
-        let balance = token_to.balanceOf(beneficiary);
+        let balance = buy_token.balanceOf(beneficiary);
         assert(balance == 100000_u256, 'Invalid beneficiary balance');
-        let balance = token_from.balanceOf(beneficiary);
+        let balance = sell_token.balanceOf(beneficiary);
         assert(balance == 19950_u256, 'Invalid beneficiary balance');
 
-        let (mut keys, mut data) = pop_log_raw(token_to_address).unwrap();
+        let (mut keys, mut data) = pop_log_raw(buy_token_address).unwrap();
         let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
         let expected_event = Transfer { to: beneficiary, amount: 100000_u256 };
         assert(event == expected_event, 'Invalid transfer event');
 
         // Verify avnu's fees
-        let (mut keys, mut data) = pop_log_raw(token_to_address).unwrap();
+        let (mut keys, mut data) = pop_log_raw(buy_token_address).unwrap();
         let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
         let expected_event = Transfer { to: fees_recipient, amount: 50_u256 };
         assert(event == expected_event, 'invalid avnu fees transfer');
 
-        assert(pop_log_raw(token_to_address).is_none(), 'no more token_to events');
-        assert(pop_log_raw(token_from_address).is_none(), 'no more token_from events');
+        assert(pop_log_raw(buy_token_address).is_none(), 'no more buy_token events');
+        assert(pop_log_raw(sell_token_address).is_none(), 'no more sell_token events');
     }
 
     #[test]
     #[available_gas(20000000)]
-    fn should_swap_when_setting_token_to_when_no_fees() {
+    fn should_swap_when_setting_buy_token_when_no_fees() {
         // Given
         let (exchange, ownable, fee) = deploy_exchange();
         let beneficiary = contract_address_const::<0x12345>();
-        let token_from = deploy_mock_token(beneficiary, 120000, 1);
-        let token_from_address = token_from.contract_address;
-        let token_to = deploy_mock_token(beneficiary, 0, 2);
-        let token_to_address = token_to.contract_address;
+        let sell_token = deploy_mock_token(beneficiary, 120000, 1);
+        let sell_token_address = sell_token.contract_address;
+        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        let buy_token_address = buy_token.contract_address;
         set_contract_address(ownable.get_owner());
         let fees_recipient = contract_address_const::<0x1111>();
         fee.set_fees_recipient(fees_recipient);
-        let token_from_max_amount = u256 { low: 120000, high: 0 };
-        let token_from_amount = u256 { low: 8000, high: 0 };
-        let token_to_amount = u256 { low: 100000, high: 0 };
+        let sell_token_max_amount = u256 { low: 120000, high: 0 };
+        let sell_token_amount = u256 { low: 8000, high: 0 };
+        let buy_token_amount = u256 { low: 100000, high: 0 };
         let mut routes = ArrayTrait::new();
         routes
             .append(
                 Route {
-                    token_from: token_from_address,
-                    token_to: token_to_address,
+                    sell_token: sell_token_address,
+                    buy_token: buy_token_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 },
             );
         set_contract_address(beneficiary);
-        token_from.approve(exchange.contract_address, token_from_max_amount);
+        sell_token.approve(exchange.contract_address, sell_token_max_amount);
 
         // When
         let result = exchange
             .swap_exact_token_to(
-                token_from_address, token_from_amount, token_from_max_amount, token_to_address, token_to_amount, beneficiary, routes,
+                sell_token_address, sell_token_amount, sell_token_max_amount, buy_token_address, buy_token_amount, beneficiary, routes,
             );
 
         // Then
@@ -1586,28 +1586,28 @@ mod SwapExactTokenTo {
         let event: Swap = starknet::Event::deserialize(ref keys, ref data).unwrap();
         let expected_event = Swap {
             taker_address: beneficiary,
-            sell_address: token_from_address,
+            sell_address: sell_token_address,
             sell_amount: 100000,
-            buy_address: token_to_address,
-            buy_amount: token_to_amount,
+            buy_address: buy_token_address,
+            buy_amount: buy_token_amount,
             beneficiary: beneficiary,
         };
         assert(event == expected_event, 'invalid swap event');
         assert(pop_log_raw(exchange.contract_address).is_none(), 'no more events');
 
         // Verify that beneficiary receives tokens to
-        let balance = token_to.balanceOf(beneficiary);
+        let balance = buy_token.balanceOf(beneficiary);
         assert(balance == 100000_u256, 'Invalid beneficiary balance');
-        let balance = token_from.balanceOf(beneficiary);
+        let balance = sell_token.balanceOf(beneficiary);
         assert(balance == 20000_u256, 'Invalid beneficiary balance');
 
-        let (mut keys, mut data) = pop_log_raw(token_to_address).unwrap();
+        let (mut keys, mut data) = pop_log_raw(buy_token_address).unwrap();
         let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
         let expected_event = Transfer { to: beneficiary, amount: 100000_u256 };
         assert(event == expected_event, 'Invalid transfer event');
 
-        assert(pop_log_raw(token_to_address).is_none(), 'no more token_to events');
-        assert(pop_log_raw(token_from_address).is_none(), 'no more token_from events');
+        assert(pop_log_raw(buy_token_address).is_none(), 'no more buy_token events');
+        assert(pop_log_raw(sell_token_address).is_none(), 'no more sell_token events');
     }
 
     #[test]
@@ -1617,69 +1617,69 @@ mod SwapExactTokenTo {
         // Given
         let (exchange, ownable, fee) = deploy_exchange();
         let beneficiary = contract_address_const::<0x12345>();
-        let token_from = deploy_mock_token(beneficiary, 10, 1);
-        let token_from_address = token_from.contract_address;
-        let token_to = deploy_mock_token(beneficiary, 0, 2);
-        let token_to_address = token_to.contract_address;
-        let token_from_max_amount = u256 { low: 10, high: 0 };
-        let token_from_amount = u256 { low: 9, high: 0 };
+        let sell_token = deploy_mock_token(beneficiary, 10, 1);
+        let sell_token_address = sell_token.contract_address;
+        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        let buy_token_address = buy_token.contract_address;
+        let sell_token_max_amount = u256 { low: 10, high: 0 };
+        let sell_token_amount = u256 { low: 9, high: 0 };
         set_contract_address(ownable.get_owner());
         let fees_recipient = contract_address_const::<0x1111>();
         fee.set_fees_recipient(fees_recipient);
-        let token_to_amount = u256 { low: 1, high: 0 };
+        let buy_token_amount = u256 { low: 1, high: 0 };
         let mut routes = ArrayTrait::new();
         routes
             .append(
                 Route {
-                    token_from: token_from_address,
-                    token_to: token_to_address,
+                    sell_token: sell_token_address,
+                    buy_token: buy_token_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 40 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 },
             );
         set_contract_address(beneficiary);
-        token_from.approve(exchange.contract_address, token_from_max_amount);
+        sell_token.approve(exchange.contract_address, sell_token_max_amount);
 
         // When
         exchange
             .swap_exact_token_to(
-                token_from_address, token_from_amount, token_from_max_amount, token_to_address, token_to_amount, beneficiary, routes,
+                sell_token_address, sell_token_amount, sell_token_max_amount, buy_token_address, buy_token_amount, beneficiary, routes,
             );
     }
 
     #[test]
     #[available_gas(20000000)]
     #[should_panic(expected: ('Token from amount is 0', 'ENTRYPOINT_FAILED'))]
-    fn should_throw_error_when_token_from_amount_is_0() {
+    fn should_throw_error_when_sell_token_amount_is_0() {
         // Given
         let (exchange, _, _) = deploy_exchange();
         let beneficiary = contract_address_const::<0x12345>();
-        let token_from = deploy_mock_token(beneficiary, 10, 1);
-        let token_from_address = token_from.contract_address;
-        let token_to = deploy_mock_token(beneficiary, 0, 2);
-        let token_to_address = token_to.contract_address;
-        let token_from_max_amount = u256 { low: 10, high: 0 };
-        let token_from_amount = u256 { low: 0, high: 0 };
-        let token_to_amount = u256 { low: 9, high: 0 };
+        let sell_token = deploy_mock_token(beneficiary, 10, 1);
+        let sell_token_address = sell_token.contract_address;
+        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        let buy_token_address = buy_token.contract_address;
+        let sell_token_max_amount = u256 { low: 10, high: 0 };
+        let sell_token_amount = u256 { low: 0, high: 0 };
+        let buy_token_amount = u256 { low: 9, high: 0 };
         let mut routes = ArrayTrait::new();
         routes
             .append(
                 Route {
-                    token_from: token_from_address,
-                    token_to: token_to_address,
+                    sell_token: sell_token_address,
+                    buy_token: buy_token_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 },
             );
         set_contract_address(beneficiary);
-        token_from.approve(exchange.contract_address, token_from_max_amount);
+        sell_token.approve(exchange.contract_address, sell_token_max_amount);
 
         // When & Then
         exchange
             .swap_exact_token_to(
-                token_from_address, token_from_amount, token_from_max_amount, token_to_address, token_to_amount, beneficiary, routes,
+                sell_token_address, sell_token_amount, sell_token_max_amount, buy_token_address, buy_token_amount, beneficiary, routes,
             );
     }
 
@@ -1690,31 +1690,31 @@ mod SwapExactTokenTo {
         // Given
         let (exchange, _, _) = deploy_exchange();
         let beneficiary = contract_address_const::<0x12345>();
-        let token_from = deploy_mock_token(beneficiary, 5, 1);
-        let token_from_address = token_from.contract_address;
-        let token_to = deploy_mock_token(beneficiary, 0, 2);
-        let token_to_address = token_to.contract_address;
-        let token_from_max_amount = u256 { low: 10, high: 0 };
-        let token_from_amount = u256 { low: 9, high: 0 };
-        let token_to_amount = u256 { low: 9, high: 0 };
+        let sell_token = deploy_mock_token(beneficiary, 5, 1);
+        let sell_token_address = sell_token.contract_address;
+        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        let buy_token_address = buy_token.contract_address;
+        let sell_token_max_amount = u256 { low: 10, high: 0 };
+        let sell_token_amount = u256 { low: 9, high: 0 };
+        let buy_token_amount = u256 { low: 9, high: 0 };
         let mut routes = ArrayTrait::new();
         routes
             .append(
                 Route {
-                    token_from: token_from_address,
-                    token_to: token_to_address,
+                    sell_token: sell_token_address,
+                    buy_token: buy_token_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 },
             );
         set_contract_address(beneficiary);
-        token_from.approve(exchange.contract_address, token_from_max_amount);
+        sell_token.approve(exchange.contract_address, sell_token_max_amount);
 
         // When & Then
         exchange
             .swap_exact_token_to(
-                token_from_address, token_from_amount, token_from_max_amount, token_to_address, token_to_amount, beneficiary, routes,
+                sell_token_address, sell_token_amount, sell_token_max_amount, buy_token_address, buy_token_amount, beneficiary, routes,
             );
     }
 
@@ -1725,13 +1725,13 @@ mod SwapExactTokenTo {
         // Given
         let (exchange, ownable, fee) = deploy_exchange();
         let beneficiary = contract_address_const::<0x12345>();
-        let token_from = deploy_mock_token(beneficiary, 10, 1);
-        let token_from_address = token_from.contract_address;
-        let token_to = deploy_mock_token(beneficiary, 0, 2);
-        let token_to_address = token_to.contract_address;
-        let token_from_max_amount = u256 { low: 10, high: 0 };
-        let token_from_amount = u256 { low: 10, high: 0 };
-        let token_to_amount = u256 { low: 9, high: 0 };
+        let sell_token = deploy_mock_token(beneficiary, 10, 1);
+        let sell_token_address = sell_token.contract_address;
+        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        let buy_token_address = buy_token.contract_address;
+        let sell_token_max_amount = u256 { low: 10, high: 0 };
+        let sell_token_amount = u256 { low: 10, high: 0 };
+        let buy_token_amount = u256 { low: 9, high: 0 };
         set_contract_address(ownable.get_owner());
         let fees_recipient = contract_address_const::<0x0>();
         fee.set_fees_recipient(fees_recipient);
@@ -1739,20 +1739,20 @@ mod SwapExactTokenTo {
         routes
             .append(
                 Route {
-                    token_from: token_from_address,
-                    token_to: token_to_address,
+                    sell_token: sell_token_address,
+                    buy_token: buy_token_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 },
             );
         set_contract_address(beneficiary);
-        token_from.approve(exchange.contract_address, token_from_max_amount);
+        sell_token.approve(exchange.contract_address, sell_token_max_amount);
 
         // When & Then
         exchange
             .swap_exact_token_to(
-                token_from_address, token_from_amount, token_from_max_amount, token_to_address, token_to_amount, beneficiary, routes,
+                sell_token_address, sell_token_amount, sell_token_max_amount, buy_token_address, buy_token_amount, beneficiary, routes,
             );
     }
 
@@ -1763,64 +1763,64 @@ mod SwapExactTokenTo {
         // Given
         let (exchange, _, _) = deploy_exchange();
         let beneficiary = contract_address_const::<0x12345>();
-        let token_from = deploy_mock_token(beneficiary, 10, 1);
-        let token_from_address = token_from.contract_address;
-        let token_to = deploy_mock_token(beneficiary, 0, 2);
-        let token_to_address = token_to.contract_address;
-        let token_from_max_amount = u256 { low: 10, high: 0 };
-        let token_from_amount = u256 { low: 9, high: 0 };
-        let token_to_amount = u256 { low: 9, high: 0 };
+        let sell_token = deploy_mock_token(beneficiary, 10, 1);
+        let sell_token_address = sell_token.contract_address;
+        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        let buy_token_address = buy_token.contract_address;
+        let sell_token_max_amount = u256 { low: 10, high: 0 };
+        let sell_token_amount = u256 { low: 9, high: 0 };
+        let buy_token_amount = u256 { low: 9, high: 0 };
         let mut routes = ArrayTrait::new();
         set_contract_address(beneficiary);
-        token_from.approve(exchange.contract_address, token_from_max_amount);
+        sell_token.approve(exchange.contract_address, sell_token_max_amount);
 
         // When & Then
         exchange
             .swap_exact_token_to(
-                token_from_address, token_from_amount, token_from_max_amount, token_to_address, token_to_amount, beneficiary, routes,
+                sell_token_address, sell_token_amount, sell_token_max_amount, buy_token_address, buy_token_amount, beneficiary, routes,
             );
     }
 
     #[test]
     #[should_panic(expected: ('Invalid token from', 'ENTRYPOINT_FAILED'))]
     #[available_gas(20000000)]
-    fn should_throw_error_when_first_token_from_is_not_token_from() {
+    fn should_throw_error_when_first_sell_token_is_not_sell_token() {
         // Given
         let (exchange, _, _) = deploy_exchange();
         let beneficiary = contract_address_const::<0x12345>();
-        let token_from = deploy_mock_token(beneficiary, 10, 1);
-        let token_from_address = token_from.contract_address;
-        let token_from_address_2 = deploy_mock_token(beneficiary, 10, 2).contract_address;
-        let token_to = deploy_mock_token(beneficiary, 0, 3);
-        let token_to_address = token_to.contract_address;
-        let token_from_max_amount = u256 { low: 10, high: 0 };
-        let token_from_amount = u256 { low: 9, high: 0 };
-        let token_to_amount = u256 { low: 9, high: 0 };
+        let sell_token = deploy_mock_token(beneficiary, 10, 1);
+        let sell_token_address = sell_token.contract_address;
+        let sell_token_address_2 = deploy_mock_token(beneficiary, 10, 2).contract_address;
+        let buy_token = deploy_mock_token(beneficiary, 0, 3);
+        let buy_token_address = buy_token.contract_address;
+        let sell_token_max_amount = u256 { low: 10, high: 0 };
+        let sell_token_amount = u256 { low: 9, high: 0 };
+        let buy_token_amount = u256 { low: 9, high: 0 };
         let mut routes = ArrayTrait::new();
         routes
             .append(
                 Route {
-                    token_from: token_from_address_2,
-                    token_to: token_to_address,
+                    sell_token: sell_token_address_2,
+                    buy_token: buy_token_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 },
             );
         set_contract_address(beneficiary);
-        token_from.approve(exchange.contract_address, token_from_max_amount);
+        sell_token.approve(exchange.contract_address, sell_token_max_amount);
 
         // When & Then
         exchange
             .swap_exact_token_to(
-                token_from_address, token_from_amount, token_from_max_amount, token_to_address, token_to_amount, beneficiary, routes,
+                sell_token_address, sell_token_amount, sell_token_max_amount, buy_token_address, buy_token_amount, beneficiary, routes,
             );
     }
 
     #[test]
     #[available_gas(20000000)]
     #[should_panic(expected: ('Invalid token to', 'ENTRYPOINT_FAILED'))]
-    fn should_throw_error_when_last_token_to_is_not_token_to() {
+    fn should_throw_error_when_last_buy_token_is_not_buy_token() {
         // Given
         let (exchange, _, _) = deploy_exchange();
         let beneficiary = contract_address_const::<0x12345>();
@@ -1831,16 +1831,16 @@ mod SwapExactTokenTo {
         let token_4_address = deploy_mock_token(beneficiary, 0, 4).contract_address;
         let token_5_address = deploy_mock_token(beneficiary, 0, 5).contract_address;
         let beneficiary = contract_address_const::<0x12345>();
-        let token_from_max_amount = u256 { low: 10, high: 0 };
-        let token_from_amount = u256 { low: 9, high: 0 };
-        let token_to_amount = u256 { low: 9, high: 0 };
+        let sell_token_max_amount = u256 { low: 10, high: 0 };
+        let sell_token_amount = u256 { low: 9, high: 0 };
+        let buy_token_amount = u256 { low: 9, high: 0 };
         let mut routes = ArrayTrait::new();
         let exchange_address = contract_address_const::<0x12>();
         routes
             .append(
                 Route {
-                    token_from: token_1_address,
-                    token_to: token_2_address,
+                    sell_token: token_1_address,
+                    buy_token: token_2_address,
                     exchange_address,
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
@@ -1849,8 +1849,8 @@ mod SwapExactTokenTo {
         routes
             .append(
                 Route {
-                    token_from: token_2_address,
-                    token_to: token_2_address,
+                    sell_token: token_2_address,
+                    buy_token: token_2_address,
                     exchange_address,
                     percent: 33 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
@@ -1859,8 +1859,8 @@ mod SwapExactTokenTo {
         routes
             .append(
                 Route {
-                    token_from: token_2_address,
-                    token_to: token_3_address,
+                    sell_token: token_2_address,
+                    buy_token: token_3_address,
                     exchange_address,
                     percent: 50 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
@@ -1869,8 +1869,8 @@ mod SwapExactTokenTo {
         routes
             .append(
                 Route {
-                    token_from: token_2_address,
-                    token_to: token_4_address,
+                    sell_token: token_2_address,
+                    buy_token: token_4_address,
                     exchange_address,
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
@@ -1879,8 +1879,8 @@ mod SwapExactTokenTo {
         routes
             .append(
                 Route {
-                    token_from: token_3_address,
-                    token_to: token_5_address,
+                    sell_token: token_3_address,
+                    buy_token: token_5_address,
                     exchange_address,
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
@@ -1889,53 +1889,53 @@ mod SwapExactTokenTo {
         routes
             .append(
                 Route {
-                    token_from: token_4_address,
-                    token_to: token_3_address,
+                    sell_token: token_4_address,
+                    buy_token: token_3_address,
                     exchange_address,
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 },
             );
         set_contract_address(beneficiary);
-        token_1.approve(exchange.contract_address, token_from_max_amount);
+        token_1.approve(exchange.contract_address, sell_token_max_amount);
 
         // When & Then
         exchange
-            .swap_exact_token_to(token_1_address, token_from_amount, token_from_max_amount, token_5_address, token_to_amount, beneficiary, routes);
+            .swap_exact_token_to(token_1_address, sell_token_amount, sell_token_max_amount, token_5_address, buy_token_amount, beneficiary, routes);
     }
 
     #[test]
     #[available_gas(20000000)]
     #[should_panic(expected: ('Insufficient token from amount', 'ENTRYPOINT_FAILED'))]
-    fn should_fail_when_not_enough_token_from() {
+    fn should_fail_when_not_enough_sell_token() {
         // Given
         let (exchange, _, _) = deploy_exchange();
         let beneficiary = contract_address_const::<0x12345>();
-        let token_from = deploy_mock_token(beneficiary, 10, 1);
-        let token_from_address = token_from.contract_address;
-        let token_to = deploy_mock_token(beneficiary, 0, 2);
-        let token_to_address = token_to.contract_address;
-        let token_from_max_amount = u256 { low: 10, high: 0 };
-        let token_from_amount = u256 { low: 9, high: 0 };
-        let token_to_amount = u256 { low: 11, high: 0 };
+        let sell_token = deploy_mock_token(beneficiary, 10, 1);
+        let sell_token_address = sell_token.contract_address;
+        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        let buy_token_address = buy_token.contract_address;
+        let sell_token_max_amount = u256 { low: 10, high: 0 };
+        let sell_token_amount = u256 { low: 9, high: 0 };
+        let buy_token_amount = u256 { low: 11, high: 0 };
         let mut routes = ArrayTrait::new();
         routes
             .append(
                 Route {
-                    token_from: token_from_address,
-                    token_to: token_to_address,
+                    sell_token: sell_token_address,
+                    buy_token: buy_token_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 },
             );
         set_contract_address(beneficiary);
-        token_from.approve(exchange.contract_address, token_from_max_amount);
+        sell_token.approve(exchange.contract_address, sell_token_max_amount);
 
         // When & Then
         exchange
             .swap_exact_token_to(
-                token_from_address, token_from_amount, token_from_max_amount, token_to_address, token_to_amount, beneficiary, routes,
+                sell_token_address, sell_token_amount, sell_token_max_amount, buy_token_address, buy_token_amount, beneficiary, routes,
             );
     }
 
@@ -1946,19 +1946,19 @@ mod SwapExactTokenTo {
         // Given
         let (exchange, _, _) = deploy_exchange();
         let beneficiary = contract_address_const::<0x12345>();
-        let token_from = deploy_mock_token(beneficiary, 10, 1);
-        let token_from_address = token_from.contract_address;
-        let token_to = deploy_mock_token(beneficiary, 0, 2);
-        let token_to_address = token_to.contract_address;
-        let token_from_max_amount = u256 { low: 10, high: 0 };
-        let token_from_amount = u256 { low: 9, high: 0 };
-        let token_to_amount = u256 { low: 9, high: 0 };
+        let sell_token = deploy_mock_token(beneficiary, 10, 1);
+        let sell_token_address = sell_token.contract_address;
+        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        let buy_token_address = buy_token.contract_address;
+        let sell_token_max_amount = u256 { low: 10, high: 0 };
+        let sell_token_amount = u256 { low: 9, high: 0 };
+        let buy_token_amount = u256 { low: 9, high: 0 };
         let mut routes = ArrayTrait::new();
         routes
             .append(
                 Route {
-                    token_from: token_from_address,
-                    token_to: token_to_address,
+                    sell_token: sell_token_address,
+                    buy_token: buy_token_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
@@ -1968,7 +1968,7 @@ mod SwapExactTokenTo {
         // When & Then
         exchange
             .swap_exact_token_to(
-                token_from_address, token_from_amount, token_from_max_amount, token_to_address, token_to_amount, beneficiary, routes,
+                sell_token_address, sell_token_amount, sell_token_max_amount, buy_token_address, buy_token_amount, beneficiary, routes,
             );
     }
 }
@@ -2164,34 +2164,34 @@ mod UpgradeClassAndMigration {
         exchange.upgrade_class(Exchange::TEST_CLASS_HASH.try_into().unwrap());
         let beneficiary = contract_address_const::<0x12345>();
 
-        let token_from = deploy_mock_token(beneficiary, 1000, 1);
-        let token_from_address = token_from.contract_address;
-        let token_to = deploy_mock_token(beneficiary, 0, 2);
-        let token_to_address = token_to.contract_address;
-        let token_from_amount = u256 { low: 1000, high: 0 };
-        let token_to_min_amount = u256 { low: 950, high: 0 };
-        let token_to_amount = u256 { low: 950, high: 0 };
+        let sell_token = deploy_mock_token(beneficiary, 1000, 1);
+        let sell_token_address = sell_token.contract_address;
+        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        let buy_token_address = buy_token.contract_address;
+        let sell_token_amount = u256 { low: 1000, high: 0 };
+        let buy_token_min_amount = u256 { low: 950, high: 0 };
+        let buy_token_amount = u256 { low: 950, high: 0 };
         let mut routes = ArrayTrait::new();
         routes
             .append(
                 Route {
-                    token_from: token_from_address,
-                    token_to: token_to_address,
+                    sell_token: sell_token_address,
+                    buy_token: buy_token_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 },
             );
         set_contract_address(beneficiary);
-        token_from.approve(exchange.contract_address, token_from_amount);
+        sell_token.approve(exchange.contract_address, sell_token_amount);
 
         let result = exchange
             .multi_route_swap(
-                token_from_address,
-                token_from_amount,
-                token_to_address,
-                token_to_amount,
-                token_to_min_amount,
+                sell_token_address,
+                sell_token_amount,
+                buy_token_address,
+                buy_token_amount,
+                buy_token_min_amount,
                 beneficiary,
                 0x64, // 1%, 100 bps
                 contract_address_const::<0x111>(),
@@ -2204,9 +2204,9 @@ mod UpgradeClassAndMigration {
         let event: Swap = starknet::Event::deserialize(ref keys, ref data).unwrap();
         let expected_event = Swap {
             taker_address: beneficiary,
-            sell_address: token_from_address,
-            sell_amount: token_from_amount,
-            buy_address: token_to_address,
+            sell_address: sell_token_address,
+            sell_amount: sell_token_amount,
+            buy_address: buy_token_address,
             buy_amount: u256 { low: 990, high: 0 },
             beneficiary: beneficiary,
         };
@@ -2215,20 +2215,20 @@ mod UpgradeClassAndMigration {
 
         // Verify transfers
         // Verify integrator's fees
-        let (mut keys, mut data) = pop_log_raw(token_to_address).unwrap();
+        let (mut keys, mut data) = pop_log_raw(buy_token_address).unwrap();
         let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
         let expected_event = Transfer { to: contract_address_const::<0x111>(), amount: 10_u256 };
         assert(event == expected_event, 'invalid token transfer');
 
         // Verify that beneficiary receives tokens to
-        let balance = token_to.balanceOf(beneficiary);
+        let balance = buy_token.balanceOf(beneficiary);
         assert(balance == 990_u256, 'Invalid beneficiary balance');
-        let (mut keys, mut data) = pop_log_raw(token_to_address).unwrap();
+        let (mut keys, mut data) = pop_log_raw(buy_token_address).unwrap();
         let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
         let expected_event = Transfer { to: beneficiary, amount: 990_u256 };
         assert(event == expected_event, 'Invalid beneficiary balance');
-        assert(pop_log_raw(token_to_address).is_none(), 'no more token_to events');
-        assert(pop_log_raw(token_from_address).is_none(), 'no more token_from events');
+        assert(pop_log_raw(buy_token_address).is_none(), 'no more buy_token events');
+        assert(pop_log_raw(sell_token_address).is_none(), 'no more sell_token events');
     }
 
     #[test]
@@ -2252,34 +2252,34 @@ mod UpgradeClassAndMigration {
         let fee = IFeeDispatcher { contract_address: exchange_address };
         fee.set_fees_recipient(fees_recipient);
         fee.set_fees_bps_0(20);
-        let token_from = deploy_mock_token(beneficiary, 1000, 1);
-        let token_from_address = token_from.contract_address;
-        let token_to = deploy_mock_token(beneficiary, 0, 2);
-        let token_to_address = token_to.contract_address;
-        let token_from_amount = u256 { low: 1000, high: 0 };
-        let token_to_min_amount = u256 { low: 950, high: 0 };
-        let token_to_amount = u256 { low: 950, high: 0 };
+        let sell_token = deploy_mock_token(beneficiary, 1000, 1);
+        let sell_token_address = sell_token.contract_address;
+        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        let buy_token_address = buy_token.contract_address;
+        let sell_token_amount = u256 { low: 1000, high: 0 };
+        let buy_token_min_amount = u256 { low: 950, high: 0 };
+        let buy_token_amount = u256 { low: 950, high: 0 };
         let mut routes = ArrayTrait::new();
         routes
             .append(
                 Route {
-                    token_from: token_from_address,
-                    token_to: token_to_address,
+                    sell_token: sell_token_address,
+                    buy_token: buy_token_address,
                     exchange_address: contract_address_const::<0x12>(),
                     percent: 100 * ROUTE_PERCENT_FACTOR,
                     additional_swap_params: ArrayTrait::new(),
                 },
             );
         set_contract_address(beneficiary);
-        token_from.approve(exchange.contract_address, token_from_amount);
+        sell_token.approve(exchange.contract_address, sell_token_amount);
 
         let result = exchange
             .multi_route_swap(
-                token_from_address,
-                token_from_amount,
-                token_to_address,
-                token_to_amount,
-                token_to_min_amount,
+                sell_token_address,
+                sell_token_amount,
+                buy_token_address,
+                buy_token_amount,
+                buy_token_min_amount,
                 beneficiary,
                 0x64, // 1%, 100 bps
                 contract_address_const::<0x111>(),
@@ -2294,9 +2294,9 @@ mod UpgradeClassAndMigration {
         let event: Swap = starknet::Event::deserialize(ref keys, ref data).unwrap();
         let expected_event = Swap {
             taker_address: beneficiary,
-            sell_address: token_from_address,
-            sell_amount: token_from_amount,
-            buy_address: token_to_address,
+            sell_address: sell_token_address,
+            sell_amount: sell_token_amount,
+            buy_address: buy_token_address,
             buy_amount: u256 { low: 988, high: 0 },
             beneficiary: beneficiary,
         };
@@ -2305,25 +2305,25 @@ mod UpgradeClassAndMigration {
 
         // Verify transfers
         // Verify integrator's fees
-        let (mut keys, mut data) = pop_log_raw(token_to_address).unwrap();
+        let (mut keys, mut data) = pop_log_raw(buy_token_address).unwrap();
         let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
         let expected_event = Transfer { to: contract_address_const::<0x111>(), amount: 10_u256 };
         assert(event == expected_event, 'invalid token transfer');
 
         // Verify avnu's fees
-        let (mut keys, mut data) = pop_log_raw(token_to_address).unwrap();
+        let (mut keys, mut data) = pop_log_raw(buy_token_address).unwrap();
         let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
         let expected_event = Transfer { to: fees_recipient, amount: 2_u256 };
         assert(event == expected_event, 'invalid token transfer');
 
         // Verify that beneficiary receives tokens to
-        let balance = token_to.balanceOf(beneficiary);
+        let balance = buy_token.balanceOf(beneficiary);
         assert(balance == 988_u256, 'Invalid beneficiary balance');
-        let (mut keys, mut data) = pop_log_raw(token_to_address).unwrap();
+        let (mut keys, mut data) = pop_log_raw(buy_token_address).unwrap();
         let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
         let expected_event = Transfer { to: beneficiary, amount: 988_u256 };
         assert(event == expected_event, 'Invalid beneficiary balance');
-        assert(pop_log_raw(token_to_address).is_none(), 'no more token_to events');
-        assert(pop_log_raw(token_from_address).is_none(), 'no more token_from events');
+        assert(pop_log_raw(buy_token_address).is_none(), 'no more buy_token events');
+        assert(pop_log_raw(sell_token_address).is_none(), 'no more sell_token events');
     }
 }
