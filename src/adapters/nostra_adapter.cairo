@@ -10,7 +10,7 @@ pub trait INostraRouter<TContractState> {
 #[starknet::contract]
 pub mod NostraAdapter {
     use avnu::adapters::ISwapAdapter;
-    use avnu::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
+    use avnu_lib::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
     use starknet::{ContractAddress, get_block_timestamp};
     use super::{INostraRouterDispatcher, INostraRouterDispatcherTrait};
 
@@ -22,25 +22,25 @@ pub mod NostraAdapter {
         fn swap(
             self: @ContractState,
             exchange_address: ContractAddress,
-            token_from_address: ContractAddress,
-            token_from_amount: u256,
-            token_to_address: ContractAddress,
-            token_to_min_amount: u256,
+            sell_token_address: ContractAddress,
+            sell_token_amount: u256,
+            buy_token_address: ContractAddress,
+            buy_token_min_amount: u256,
             to: ContractAddress,
             additional_swap_params: Array<felt252>,
         ) {
             assert(additional_swap_params.len() == 0, 'Invalid swap params');
 
             // Init path
-            let path = array![token_from_address, token_to_address];
+            let path = array![sell_token_address, buy_token_address];
 
             // Init deadline
             let block_timestamp = get_block_timestamp();
             let deadline = block_timestamp;
 
-            IERC20Dispatcher { contract_address: token_from_address }.approve(exchange_address, token_from_amount);
+            IERC20Dispatcher { contract_address: sell_token_address }.approve(exchange_address, sell_token_amount);
             INostraRouterDispatcher { contract_address: exchange_address }
-                .swap_exact_tokens_for_tokens(token_from_amount, token_to_min_amount, path.span(), to, deadline);
+                .swap_exact_tokens_for_tokens(sell_token_amount, buy_token_min_amount, path.span(), to, deadline);
         }
     }
 }

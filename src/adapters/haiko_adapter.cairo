@@ -25,8 +25,8 @@ pub trait IHaikoRouter<TContractState> {
 #[starknet::contract]
 pub mod HaikoAdapter {
     use avnu::adapters::ISwapAdapter;
-    use avnu::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
     use avnu::math::sqrt_ratio::compute_sqrt_ratio_limit;
+    use avnu_lib::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
     use starknet::{ContractAddress, get_block_timestamp};
     use super::{IHaikoRouterDispatcher, IHaikoRouterDispatcherTrait};
 
@@ -41,10 +41,10 @@ pub mod HaikoAdapter {
         fn swap(
             self: @ContractState,
             exchange_address: ContractAddress,
-            token_from_address: ContractAddress,
-            token_from_amount: u256,
-            token_to_address: ContractAddress,
-            token_to_min_amount: u256,
+            sell_token_address: ContractAddress,
+            sell_token_amount: u256,
+            buy_token_address: ContractAddress,
+            buy_token_min_amount: u256,
             to: ContractAddress,
             additional_swap_params: Array<felt252>,
         ) {
@@ -55,16 +55,16 @@ pub mod HaikoAdapter {
             let sphinx = IHaikoRouterDispatcher { contract_address: exchange_address };
             let market_id = *additional_swap_params[0];
             let sqrt_ratio_distance: u256 = (*additional_swap_params[1]).into();
-            let is_buy = sphinx.base_token(market_id) == token_to_address.into();
+            let is_buy = sphinx.base_token(market_id) == buy_token_address.into();
             let sqrt_price = sphinx.curr_sqrt_price(market_id);
             let sqrt_ratio_limit = compute_sqrt_ratio_limit(sqrt_price, sqrt_ratio_distance, is_buy, MIN_SQRT_RATIO, MAX_SQRT_RATIO);
             let deadline = get_block_timestamp();
 
             // Approve
-            IERC20Dispatcher { contract_address: token_from_address }.approve(exchange_address, token_from_amount);
+            IERC20Dispatcher { contract_address: sell_token_address }.approve(exchange_address, sell_token_amount);
 
             // Swap
-            sphinx.swap(market_id, is_buy, token_from_amount, true, Option::Some(sqrt_ratio_limit), Option::None, Option::Some(deadline));
+            sphinx.swap(market_id, is_buy, sell_token_amount, true, Option::Some(sqrt_ratio_limit), Option::None, Option::Some(deadline));
         }
     }
 }

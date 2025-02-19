@@ -18,7 +18,7 @@ pub trait IStarkDefiRouter<TContractState> {
 #[starknet::contract]
 pub mod StarkDefiAdapter {
     use avnu::adapters::ISwapAdapter;
-    use avnu::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
+    use avnu_lib::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
     use starknet::{ContractAddress, get_block_timestamp};
     use super::{IStarkDefiRouterDispatcher, IStarkDefiRouterDispatcherTrait, SwapPath};
 
@@ -30,10 +30,10 @@ pub mod StarkDefiAdapter {
         fn swap(
             self: @ContractState,
             exchange_address: ContractAddress,
-            token_from_address: ContractAddress,
-            token_from_amount: u256,
-            token_to_address: ContractAddress,
-            token_to_min_amount: u256,
+            sell_token_address: ContractAddress,
+            sell_token_amount: u256,
+            buy_token_address: ContractAddress,
+            buy_token_min_amount: u256,
             to: ContractAddress,
             additional_swap_params: Array<felt252>,
         ) {
@@ -42,14 +42,14 @@ pub mod StarkDefiAdapter {
             // Init path
             let stable: bool = *additional_swap_params[0] == 1;
             let feeTier: u8 = (*additional_swap_params[1]).try_into().unwrap();
-            let path = array![SwapPath { tokenIn: token_from_address, tokenOut: token_to_address, stable, feeTier }];
+            let path = array![SwapPath { tokenIn: sell_token_address, tokenOut: buy_token_address, stable, feeTier }];
 
             // Init deadline
             let deadline = get_block_timestamp();
 
-            IERC20Dispatcher { contract_address: token_from_address }.approve(exchange_address, token_from_amount);
+            IERC20Dispatcher { contract_address: sell_token_address }.approve(exchange_address, sell_token_amount);
             IStarkDefiRouterDispatcher { contract_address: exchange_address }
-                .swap_exact_tokens_for_tokens(token_from_amount, token_to_min_amount, path, to, deadline);
+                .swap_exact_tokens_for_tokens(sell_token_amount, buy_token_min_amount, path, to, deadline);
         }
     }
 }

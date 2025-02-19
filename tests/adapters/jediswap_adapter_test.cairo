@@ -11,8 +11,8 @@ mod Swap {
         // Given
         let adapter = deploy_jediswap_adapter();
         let exchange = deploy_mock_jediswap();
-        let token_from = deploy_mock_token(get_caller_address(), 1, 1);
-        let token_to = deploy_mock_token(get_caller_address(), 0, 2);
+        let sell_token = deploy_mock_token(get_caller_address(), 1, 1);
+        let buy_token = deploy_mock_token(get_caller_address(), 0, 2);
         let additional_params = ArrayTrait::new();
         let to = contract_address_const::<0x4>();
 
@@ -20,9 +20,9 @@ mod Swap {
         adapter
             .swap(
                 exchange.contract_address,
-                token_from.contract_address,
+                sell_token.contract_address,
                 u256 { low: 1, high: 0 },
-                token_to.contract_address,
+                buy_token.contract_address,
                 u256 { low: 2, high: 0 },
                 to,
                 additional_params,
@@ -37,8 +37,8 @@ mod Swap {
         // Given
         let adapter = deploy_jediswap_adapter();
         let exchange = deploy_mock_jediswap();
-        let token_from = deploy_mock_token(get_caller_address(), 1, 1);
-        let token_to = deploy_mock_token(get_caller_address(), 0, 2);
+        let sell_token = deploy_mock_token(get_caller_address(), 1, 1);
+        let buy_token = deploy_mock_token(get_caller_address(), 0, 2);
         let mut additional_params = ArrayTrait::new();
         additional_params.append(0x1);
         let to = contract_address_const::<0x4>();
@@ -47,9 +47,9 @@ mod Swap {
         adapter
             .swap(
                 exchange.contract_address,
-                token_from.contract_address,
+                sell_token.contract_address,
                 u256 { low: 1, high: 0 },
-                token_to.contract_address,
+                buy_token.contract_address,
                 u256 { low: 2, high: 0 },
                 to,
                 additional_params,

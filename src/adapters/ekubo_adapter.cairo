@@ -74,9 +74,9 @@ pub trait IEkuboRouter<TContractState> {
 #[starknet::contract]
 pub mod EkuboAdapter {
     use avnu::adapters::ISwapAdapter;
-    use avnu::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
     use avnu::interfaces::locker::ISwapAfterLock;
     use avnu::math::sqrt_ratio::compute_sqrt_ratio_limit;
+    use avnu_lib::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
     use starknet::ContractAddress;
     use super::{IEkuboRouterDispatcher, IEkuboRouterDispatcherTrait, PoolKey, SwapParameters, i129};
 
@@ -90,9 +90,9 @@ pub mod EkuboAdapter {
     struct SwapAfterLockParameters {
         contract_address: ContractAddress,
         to: ContractAddress,
-        token_from_address: ContractAddress,
-        token_from_amount: u256,
-        token_to_address: ContractAddress,
+        sell_token_address: ContractAddress,
+        sell_token_amount: u256,
+        buy_token_address: ContractAddress,
         pool_key: PoolKey,
         sqrt_ratio_distance: u256,
     }
@@ -102,10 +102,10 @@ pub mod EkuboAdapter {
         fn swap(
             self: @ContractState,
             exchange_address: ContractAddress,
-            token_from_address: ContractAddress,
-            token_from_amount: u256,
-            token_to_address: ContractAddress,
-            token_to_min_amount: u256,
+            sell_token_address: ContractAddress,
+            sell_token_amount: u256,
+            buy_token_address: ContractAddress,
+            buy_token_min_amount: u256,
             to: ContractAddress,
             additional_swap_params: Array<felt252>,
         ) {
@@ -116,9 +116,9 @@ pub mod EkuboAdapter {
             let callback = SwapAfterLockParameters {
                 contract_address: exchange_address,
                 to,
-                token_from_address,
-                token_from_amount,
-                token_to_address,
+                sell_token_address,
+                sell_token_amount,
+                buy_token_address,
                 pool_key: PoolKey {
                     token0: (*additional_swap_params[0]).try_into().unwrap(),
                     token1: (*additional_swap_params[1]).try_into().unwrap(),
@@ -146,39 +146,39 @@ pub mod EkuboAdapter {
 
             // Init dispatcher
             let ekubo = IEkuboRouterDispatcher { contract_address: params.contract_address };
-            let is_token1 = params.pool_key.token1 == params.token_from_address;
+            let is_token1 = params.pool_key.token1 == params.sell_token_address;
 
             // Swap
-            assert(params.token_from_amount.high == 0, 'Overflow: Unsupported amount');
+            assert(params.sell_token_amount.high == 0, 'Overflow: Unsupported amount');
             let pool_price = ekubo.get_pool_price(params.pool_key);
             let sqrt_ratio_limit = compute_sqrt_ratio_limit(
                 pool_price.sqrt_ratio, params.sqrt_ratio_distance, is_token1, MIN_SQRT_RATIO, MAX_SQRT_RATIO,
             );
             let swap_params = SwapParameters {
-                amount: i129 { mag: params.token_from_amount.low, sign: false }, is_token1, sqrt_ratio_limit, skip_ahead: 100,
+                amount: i129 { mag: params.sell_token_amount.low, sign: false }, is_token1, sqrt_ratio_limit, skip_ahead: 100,
             };
             let delta = ekubo.swap(params.pool_key, swap_params);
 
             // Each swap generates a "delta", but does not trigger any token transfers.
             // A negative delta indicates you are owed tokens. A positive delta indicates core owes you tokens.
 
-            // Approve token_from to the exchange
-            let token_from = IERC20Dispatcher { contract_address: params.token_from_address };
-            let amount_from: i129 = if is_token1 {
+            // Approve sell_token to the exchange
+            let sell_token = IERC20Dispatcher { contract_address: params.sell_token_address };
+            let sell_amount: i129 = if is_token1 {
                 delta.amount1
             } else {
                 delta.amount0
             };
-            token_from.approve(ekubo.contract_address, amount_from.mag.into());
-            ekubo.pay(params.token_from_address);
+            sell_token.approve(ekubo.contract_address, sell_amount.mag.into());
+            ekubo.pay(params.sell_token_address);
 
             // Withdraw
-            let amount_to: i129 = if is_token1 {
+            let buy_amount: i129 = if is_token1 {
                 delta.amount0
             } else {
                 delta.amount1
             };
-            ekubo.withdraw(params.token_to_address, params.to, amount_to.mag);
+            ekubo.withdraw(params.buy_token_address, params.to, buy_amount.mag);
         }
     }
 }

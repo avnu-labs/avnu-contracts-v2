@@ -142,16 +142,16 @@ pub mod MockSwapAdapter {
         fn swap(
             self: @ContractState,
             exchange_address: ContractAddress,
-            token_from_address: ContractAddress,
-            token_from_amount: u256,
-            token_to_address: ContractAddress,
-            token_to_min_amount: u256,
+            sell_token_address: ContractAddress,
+            sell_token_amount: u256,
+            buy_token_address: ContractAddress,
+            buy_token_min_amount: u256,
             to: ContractAddress,
             additional_swap_params: Array<felt252>,
         ) {
             let caller = get_contract_address();
-            IERC20Dispatcher { contract_address: token_from_address }.burn(caller, token_from_amount);
-            IERC20Dispatcher { contract_address: token_to_address }.mint(caller, token_from_amount);
+            IERC20Dispatcher { contract_address: sell_token_address }.burn(caller, sell_token_amount);
+            IERC20Dispatcher { contract_address: buy_token_address }.mint(caller, sell_token_amount);
         }
     }
 }

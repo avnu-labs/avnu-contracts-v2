@@ -18,4 +18,4 @@ sierra = true
 
 [tool.fmt]
 sort-module-level-items = true
-max-line-length = 140
+max-line-length = 150

@@ -12,16 +12,14 @@ pub struct SwapResult {
 pub trait IMySwapV2Router<TContractState> {
     fn current_sqrt_price(self: @TContractState, pool_key: felt252) -> u256;
     fn token0(self: @TContractState, pool_key: felt252) -> ContractAddress;
-    fn swap(
-        self: @TContractState, pool_key: felt252, zero_for_one: bool, amount: u256, exact_input: bool, sqrt_price_limit_x96: u256,
-    ) -> SwapResult;
+    fn swap(self: @TContractState, pool_key: felt252, zero_for_one: bool, amount: u256, exact_input: bool, sqrt_price_limit_x96: u256) -> SwapResult;
 }
 
 #[starknet::contract]
 pub mod MyswapV2Adapter {
     use avnu::adapters::ISwapAdapter;
-    use avnu::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
     use avnu::math::sqrt_ratio::compute_sqrt_ratio_limit;
+    use avnu_lib::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
     use starknet::ContractAddress;
     use super::{IMySwapV2RouterDispatcher, IMySwapV2RouterDispatcherTrait};
 
@@ -38,10 +36,10 @@ pub mod MyswapV2Adapter {
         fn swap(
             self: @ContractState,
             exchange_address: ContractAddress,
-            token_from_address: ContractAddress,
-            token_from_amount: u256,
-            token_to_address: ContractAddress,
-            token_to_min_amount: u256,
+            sell_token_address: ContractAddress,
+            sell_token_amount: u256,
+            buy_token_address: ContractAddress,
+            buy_token_min_amount: u256,
             to: ContractAddress,
             additional_swap_params: Array<felt252>,
         ) {
@@ -52,15 +50,15 @@ pub mod MyswapV2Adapter {
             let myswapv2 = IMySwapV2RouterDispatcher { contract_address: exchange_address };
             let pool_key = *additional_swap_params[0];
             let sqrt_ratio_distance: u256 = (*additional_swap_params[1]).into();
-            let is_token_0 = myswapv2.token0(pool_key) == token_from_address;
+            let is_token_0 = myswapv2.token0(pool_key) == sell_token_address;
             let sqrt_price = myswapv2.current_sqrt_price(pool_key);
             let sqrt_ratio_limit = compute_sqrt_ratio_limit(sqrt_price, sqrt_ratio_distance, !is_token_0, MIN_SQRT_RATIO, MAX_SQRT_RATIO);
 
             // Approve
-            IERC20Dispatcher { contract_address: token_from_address }.approve(exchange_address, token_from_amount);
+            IERC20Dispatcher { contract_address: sell_token_address }.approve(exchange_address, sell_token_amount);
 
             // Swap
-            myswapv2.swap(pool_key, is_token_0, token_from_amount, true, sqrt_ratio_limit);
+            myswapv2.swap(pool_key, is_token_0, sell_token_amount, true, sqrt_ratio_limit);
         }
     }
 }

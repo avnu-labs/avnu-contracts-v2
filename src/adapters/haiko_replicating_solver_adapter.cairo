@@ -34,7 +34,7 @@ pub trait IHaikoRouter<TContractState> {
 #[starknet::contract]
 pub mod HaikoReplicatingSolverAdapter {
     use avnu::adapters::ISwapAdapter;
-    use avnu::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
+    use avnu_lib::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
     use starknet::{ContractAddress, get_block_timestamp};
     use super::{IHaikoRouterDispatcher, IHaikoRouterDispatcherTrait, SwapParams};
 
@@ -46,10 +46,10 @@ pub mod HaikoReplicatingSolverAdapter {
         fn swap(
             self: @ContractState,
             exchange_address: ContractAddress,
-            token_from_address: ContractAddress,
-            token_from_amount: u256,
-            token_to_address: ContractAddress,
-            token_to_min_amount: u256,
+            sell_token_address: ContractAddress,
+            sell_token_amount: u256,
+            buy_token_address: ContractAddress,
+            buy_token_min_amount: u256,
             to: ContractAddress,
             additional_swap_params: Array<felt252>,
         ) {
@@ -59,10 +59,10 @@ pub mod HaikoReplicatingSolverAdapter {
             // Prepare swap params
             let haiko = IHaikoRouterDispatcher { contract_address: exchange_address };
             let market_id = *additional_swap_params[0];
-            let is_buy = haiko.market_info(market_id).base_token == token_to_address.into();
+            let is_buy = haiko.market_info(market_id).base_token == buy_token_address.into();
             let swap_params = SwapParams {
                 is_buy,
-                amount: token_from_amount,
+                amount: sell_token_amount,
                 exact_input: true,
                 threshold_sqrt_price: Option::None,
                 threshold_amount: Option::None,
@@ -70,7 +70,7 @@ pub mod HaikoReplicatingSolverAdapter {
             };
 
             // Approve
-            IERC20Dispatcher { contract_address: token_from_address }.approve(exchange_address, token_from_amount);
+            IERC20Dispatcher { contract_address: sell_token_address }.approve(exchange_address, sell_token_amount);
 
             // Swap
 

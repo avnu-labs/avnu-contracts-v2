@@ -18,10 +18,10 @@ pub trait ISwapAdapter<TContractState> {
     fn swap(
         self: @TContractState,
         exchange_address: ContractAddress,
-        token_from_address: ContractAddress,
-        token_from_amount: u256,
-        token_to_address: ContractAddress,
-        token_to_min_amount: u256,
+        sell_token_address: ContractAddress,
+        sell_token_amount: u256,
+        buy_token_address: ContractAddress,
+        buy_token_min_amount: u256,
         to: ContractAddress,
         additional_swap_params: Array<felt252>,
     );
