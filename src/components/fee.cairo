@@ -7,7 +7,7 @@ pub struct TokenFeeConfig {
     pub weight: u32,
 }
 
-#[derive(Drop, Serde, Debug, PartialEq)]
+#[derive(Drop, Serde, Debug, PartialEq, Copy)]
 pub enum FeePolicy {
     FeeOnBuy,
     FeeOnSell,
@@ -162,16 +162,7 @@ pub mod FeeComponent {
             integrator_fee_amount_bps: u128,
             route_len: u32,
         ) -> (FeePolicy, u128) {
-            // First we retrieve the fee configuration for the two tokens
-            let sell_token_fee_config = self.token_fee_configs.read(sell_token_address);
-            let buy_token_fee_config = self.token_fee_configs.read(buy_token_address);
-
-            // Thanks to the weight we can determine if we take fees on buy or sell
-            let policy = if (buy_token_fee_config.weight >= sell_token_fee_config.weight) {
-                FeePolicy::FeeOnBuy
-            } else {
-                FeePolicy::FeeOnSell
-            };
+            let policy = self.get_fee_policy(sell_token_address, buy_token_address);
 
             // Calculate fees based on route length
             let fees_bps = if (route_len > 1) {
@@ -186,6 +177,21 @@ pub mod FeeComponent {
             }
 
             (policy, fees_bps)
+        }
+
+        fn get_fee_policy(
+            self: @ComponentState<TContractState>, sell_token_address: ContractAddress, buy_token_address: ContractAddress,
+        ) -> FeePolicy {
+            // First we retrieve the fee configuration for the two tokens
+            let sell_token_fee_config = self.token_fee_configs.read(sell_token_address);
+            let buy_token_fee_config = self.token_fee_configs.read(buy_token_address);
+
+            // Thanks to the weight we can determine if we take fees on buy or sell
+            if (buy_token_fee_config.weight >= sell_token_fee_config.weight) {
+                FeePolicy::FeeOnBuy
+            } else {
+                FeePolicy::FeeOnSell
+            }
         }
 
         // Collects fees and returns the remaing amount of token
@@ -212,9 +218,7 @@ pub mod FeeComponent {
             ref self: ComponentState<TContractState>, token: IERC20Dispatcher, amount: u256, fee_recipient: ContractAddress, fee_amount_bps: u128,
         ) -> u256 {
             if (!fee_amount_bps.is_zero() && !fee_recipient.is_zero()) {
-                // Compute fee amount
-                let (fee_amount, overflows) = muldiv(amount, fee_amount_bps.into(), 10000_u256, false);
-                assert(overflows == false, 'Overflow: Invalid fee');
+                let fee_amount = self.compute_fee_amount(amount, fee_amount_bps);
 
                 // Collect fees from contract
                 token.transfer(fee_recipient, fee_amount);
@@ -222,6 +226,17 @@ pub mod FeeComponent {
                 fee_amount
             } else {
                 0
+            }
+        }
+
+        fn compute_fee_amount(ref self: ComponentState<TContractState>, amount: u256, fee_amount_bps: u128) -> u256 {
+            if (!fee_amount_bps.is_zero()) {
+                // Compute fee amount
+                let (fee_amount, overflows) = muldiv(amount, fee_amount_bps.into(), 10000_u256, false);
+                assert(overflows == false, 'Overflow: Invalid fee');
+                fee_amount
+            } else {
+                0_u256
             }
         }
     }
