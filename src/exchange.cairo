@@ -33,6 +33,8 @@ pub trait IExchange<TContractState> {
         buy_token_address: ContractAddress,
         buy_token_amount: u256,
         beneficiary: ContractAddress,
+        integrator_fee_amount_bps: u128,
+        integrator_fee_recipient: ContractAddress,
         routes: Array<Route>,
     ) -> bool;
 }
@@ -248,6 +250,8 @@ pub mod Exchange {
             buy_token_address: ContractAddress,
             buy_token_amount: u256,
             beneficiary: ContractAddress,
+            integrator_fee_amount_bps: u128,
+            integrator_fee_recipient: ContractAddress,
             routes: Array<Route>,
         ) -> bool {
             let caller_address = get_caller_address();
@@ -260,18 +264,51 @@ pub mod Exchange {
             assert(sell_token_max_amount >= sell_token_amount, 'Invalid token from max amount');
             self.before_swap(contract_address, caller_address, sell_token, sell_token_amount, buy_token, beneficiary, routes_span);
 
+            // We retrieve the fee policy
+            let fee_policy = self.fee.get_fee_policy(sell_token_address, buy_token_address);
+            let integrator_fee_amount = self
+                .compute_swap_exact_token_to_integrator_fee_amount(
+                    sell_token_amount, buy_token_amount, integrator_fee_recipient, integrator_fee_amount_bps, fee_policy,
+                );
+
+            // If fee policy is FeeOnSell, we collect the fees now, but only for the integrator
+            if (!integrator_fee_amount.is_zero() && fee_policy == FeePolicy::FeeOnSell) {
+                sell_token.transfer(integrator_fee_recipient, integrator_fee_amount);
+            }
+
+            // If fee policy is FeeOnBuy, the target buy token amount is increased with the integrator fee
+            let internal_buy_token_amount = if (!integrator_fee_amount_bps.is_zero()
+                && !integrator_fee_recipient.is_zero()
+                && fee_policy == FeePolicy::FeeOnBuy) {
+                buy_token_amount + integrator_fee_amount
+            } else {
+                buy_token_amount
+            };
+
             // Swap
             let (sell_token_amount_used, buy_token_amount_received) = self
                 ._swap_exact_token_to(
-                    contract_address, caller_address, sell_token, sell_token_amount, sell_token_max_amount, buy_token, buy_token_amount, routes,
+                    contract_address,
+                    caller_address,
+                    sell_token,
+                    sell_token_amount,
+                    sell_token_max_amount,
+                    buy_token,
+                    internal_buy_token_amount,
+                    routes,
                 );
 
             // Check amount of token to and transfer tokens
-            assert(buy_token_amount <= buy_token_amount_received, 'Insufficient tokens received');
+            assert(internal_buy_token_amount <= buy_token_amount_received, 'Insufficient tokens received');
             buy_token.transfer(beneficiary, buy_token_amount);
 
+            // Collect integrator fees
+            if (!integrator_fee_amount.is_zero() && fee_policy == FeePolicy::FeeOnBuy) {
+                buy_token.transfer(integrator_fee_recipient, integrator_fee_amount);
+            }
+
             // Collect fees
-            let fees_amount = buy_token_amount_received - buy_token_amount;
+            let fees_amount = buy_token_amount_received - internal_buy_token_amount;
             if (fees_amount > 0) {
                 let fees_recipient = self.fee.get_fees_recipient();
                 assert(!fees_recipient.is_zero(), 'Fee recipient is empty');
@@ -452,6 +489,31 @@ pub mod Exchange {
                 );
 
             self.apply_routes(routes, contract_address);
+        }
+
+        fn compute_swap_exact_token_to_integrator_fee_amount(
+            ref self: ContractState,
+            sell_token_amount: u256,
+            buy_token_amount: u256,
+            integrator_fee_recipient: ContractAddress,
+            integrator_fee_amount_bps: u128,
+            fee_policy: FeePolicy,
+        ) -> u256 {
+            if integrator_fee_recipient.is_zero() || integrator_fee_amount_bps.is_zero() {
+                0_u256
+            } else if fee_policy == FeePolicy::FeeOnSell {
+                // We need to compute what the integrator fee amount in buy token is equivalent in sell token (sell token amount already includes the
+                // fee while the buy token amount does not)
+                let (fee_amount, overflows) = muldiv(
+                    sell_token_amount, integrator_fee_amount_bps.into(), (10000_u256 + integrator_fee_amount_bps.into()), false,
+                );
+                assert(overflows == false, 'Overflow: Integrator fee');
+                fee_amount
+            } else if fee_policy == FeePolicy::FeeOnBuy {
+                self.fee.compute_fee_amount(buy_token_amount, integrator_fee_amount_bps)
+            } else {
+                0_u256
+            }
         }
     }
 }

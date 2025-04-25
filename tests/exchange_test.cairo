@@ -12,6 +12,7 @@ use super::helper::{deploy_exchange, deploy_mock_token, deploy_old_exchange};
 const ROUTE_PERCENT_FACTOR: u128 = 10000000000;
 use super::mocks::mock_erc20::MockERC20::Transfer;
 use super::mocks::old_exchange::{IOldExchangeDispatcherTrait};
+
 mod GetAdapterClassHash {
     use super::{IExchangeDispatcherTrait, class_hash_const, contract_address_const, deploy_exchange};
 
@@ -1456,7 +1457,8 @@ mod MultiRouteSwap {
 mod SwapExactTokenTo {
     use super::{
         ContractAddress, IERC20DispatcherTrait, IExchangeDispatcher, IExchangeDispatcherTrait, IFeeDispatcherTrait, IOwnableDispatcherTrait,
-        ROUTE_PERCENT_FACTOR, Route, Swap, Transfer, contract_address_const, deploy_exchange, deploy_mock_token, pop_log_raw, set_contract_address,
+        ROUTE_PERCENT_FACTOR, Route, Swap, TokenFeeConfig, Transfer, contract_address_const, deploy_exchange, deploy_mock_token, pop_log_raw,
+        set_contract_address,
     };
 
     struct SwapScenario {
@@ -1501,11 +1503,21 @@ mod SwapExactTokenTo {
             );
         set_contract_address(beneficiary);
         sell_token.approve(exchange.contract_address, sell_token_max_amount);
+        let integrator_fee_recipient = contract_address_const::<0x0>();
+        let integrator_fee = 0_u128;
 
         // When
         let result = exchange
             .swap_exact_token_to(
-                sell_token_address, sell_token_amount, sell_token_max_amount, buy_token_address, buy_token_amount, beneficiary, routes,
+                sell_token_address,
+                sell_token_amount,
+                sell_token_max_amount,
+                buy_token_address,
+                buy_token_amount,
+                beneficiary,
+                integrator_fee,
+                integrator_fee_recipient,
+                routes,
             );
 
         // Then
@@ -1573,11 +1585,21 @@ mod SwapExactTokenTo {
             );
         set_contract_address(beneficiary);
         sell_token.approve(exchange.contract_address, sell_token_max_amount);
+        let integrator_fee_recipient = contract_address_const::<0x0>();
+        let integrator_fee = 0_u128;
 
         // When
         let result = exchange
             .swap_exact_token_to(
-                sell_token_address, sell_token_amount, sell_token_max_amount, buy_token_address, buy_token_amount, beneficiary, routes,
+                sell_token_address,
+                sell_token_amount,
+                sell_token_max_amount,
+                buy_token_address,
+                buy_token_amount,
+                beneficiary,
+                integrator_fee,
+                integrator_fee_recipient,
+                routes,
             );
 
         // Then
@@ -1612,6 +1634,156 @@ mod SwapExactTokenTo {
 
     #[test]
     #[available_gas(20000000)]
+    fn should_swap_when_integrator_fees_are_defined_and_should_take_fee_in_sell_token() {
+        // Given
+        let (exchange, ownable, fee) = deploy_exchange();
+        let beneficiary = contract_address_const::<0x12345>();
+        let sell_token = deploy_mock_token(beneficiary, 120000, 1);
+        let sell_token_address = sell_token.contract_address;
+        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        let buy_token_address = buy_token.contract_address;
+        let config = TokenFeeConfig { weight: 10 };
+        fee.set_token_fee_config(sell_token_address, config); // now policy should be FeeOnSell
+        set_contract_address(ownable.get_owner());
+        let fees_recipient = contract_address_const::<0x1111>();
+        fee.set_fees_recipient(fees_recipient);
+        let sell_token_max_amount = u256 { low: 120000, high: 0 };
+        let sell_token_amount = u256 { low: 80000, high: 0 };
+        let buy_token_amount = u256 { low: 100000, high: 0 };
+        let mut routes = ArrayTrait::new();
+        routes
+            .append(
+                Route {
+                    sell_token: sell_token_address,
+                    buy_token: buy_token_address,
+                    exchange_address: contract_address_const::<0x12>(),
+                    percent: 100 * ROUTE_PERCENT_FACTOR,
+                    additional_swap_params: ArrayTrait::new(),
+                },
+            );
+        set_contract_address(beneficiary);
+        sell_token.approve(exchange.contract_address, sell_token_max_amount);
+        let integrator_fee_recipient = contract_address_const::<'INTEGRATOR'>();
+        let integrator_fee = 100_u128;
+
+        // When
+        let result = exchange
+            .swap_exact_token_to(
+                sell_token_address,
+                sell_token_amount,
+                sell_token_max_amount,
+                buy_token_address,
+                buy_token_amount,
+                beneficiary,
+                integrator_fee,
+                integrator_fee_recipient,
+                routes,
+            );
+
+        // Then
+        assert(result == true, 'invalid result');
+        let (mut keys, mut data) = pop_log_raw(exchange.contract_address).unwrap();
+        let event: Swap = starknet::Event::deserialize(ref keys, ref data).unwrap();
+        let expected_event = Swap {
+            taker_address: beneficiary,
+            sell_address: sell_token_address,
+            sell_amount: 101000,
+            buy_address: buy_token_address,
+            buy_amount: buy_token_amount,
+            beneficiary: beneficiary,
+        };
+        assert(event == expected_event, 'invalid swap event');
+        assert(pop_log_raw(exchange.contract_address).is_none(), 'no more events');
+
+        // Verify that beneficiary receives tokens to
+        let balance = buy_token.balanceOf(beneficiary);
+        assert(balance == 100000_u256, 'Invalid beneficiary balance');
+        let balance = sell_token.balanceOf(beneficiary);
+        assert(balance == 19000_u256, 'Invalid beneficiary balance');
+
+        // Verify that integrator balance
+        let balance = sell_token.balanceOf(integrator_fee_recipient);
+        assert(balance == 792_u256, 'Invalid integrator balance');
+        let balance = buy_token.balanceOf(integrator_fee_recipient);
+        assert(balance == 0_u256, 'Invalid integrator balance');
+    }
+
+    #[test]
+    #[available_gas(20000000)]
+    fn should_swap_when_integrator_fees_are_defined_and_should_take_fee_in_buy_token() {
+        // Given
+        let (exchange, ownable, fee) = deploy_exchange();
+        let beneficiary = contract_address_const::<0x12345>();
+        let sell_token = deploy_mock_token(beneficiary, 120000, 1);
+        let sell_token_address = sell_token.contract_address;
+        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        let buy_token_address = buy_token.contract_address;
+        set_contract_address(ownable.get_owner());
+        let fees_recipient = contract_address_const::<0x1111>();
+        fee.set_fees_recipient(fees_recipient);
+        let sell_token_max_amount = u256 { low: 120000, high: 0 };
+        let sell_token_amount = u256 { low: 8000, high: 0 };
+        let buy_token_amount = u256 { low: 100000, high: 0 };
+        let mut routes = ArrayTrait::new();
+        routes
+            .append(
+                Route {
+                    sell_token: sell_token_address,
+                    buy_token: buy_token_address,
+                    exchange_address: contract_address_const::<0x12>(),
+                    percent: 100 * ROUTE_PERCENT_FACTOR,
+                    additional_swap_params: ArrayTrait::new(),
+                },
+            );
+        set_contract_address(beneficiary);
+        sell_token.approve(exchange.contract_address, sell_token_max_amount);
+        let integrator_fee_recipient = contract_address_const::<'INTEGRATOR'>();
+        let integrator_fee = 100_u128;
+
+        // When
+        let result = exchange
+            .swap_exact_token_to(
+                sell_token_address,
+                sell_token_amount,
+                sell_token_max_amount,
+                buy_token_address,
+                buy_token_amount,
+                beneficiary,
+                integrator_fee,
+                integrator_fee_recipient,
+                routes,
+            );
+
+        // Then
+        assert(result == true, 'invalid result');
+        let (mut keys, mut data) = pop_log_raw(exchange.contract_address).unwrap();
+        let event: Swap = starknet::Event::deserialize(ref keys, ref data).unwrap();
+        let expected_event = Swap {
+            taker_address: beneficiary,
+            sell_address: sell_token_address,
+            sell_amount: 101000,
+            buy_address: buy_token_address,
+            buy_amount: buy_token_amount,
+            beneficiary: beneficiary,
+        };
+        assert(event == expected_event, 'invalid swap event');
+        assert(pop_log_raw(exchange.contract_address).is_none(), 'no more events');
+
+        // Verify that beneficiary receives tokens to
+        let balance = buy_token.balanceOf(beneficiary);
+        assert(balance == 100000_u256, 'Invalid beneficiary balance');
+        let balance = sell_token.balanceOf(beneficiary);
+        assert(balance == 19000_u256, 'Invalid beneficiary balance');
+
+        // Verify that integrator balance
+        let balance = buy_token.balanceOf(integrator_fee_recipient);
+        assert(balance == 1000_u256, 'Invalid integrator buy balance');
+        let balance = sell_token.balanceOf(integrator_fee_recipient);
+        assert(balance == 0_u256, 'Invalid integrator sell balance');
+    }
+
+    #[test]
+    #[available_gas(20000000)]
     #[should_panic(expected: ('Residual tokens', 'ENTRYPOINT_FAILED'))]
     fn should_throw_error_when_residual_tokens() {
         // Given
@@ -1640,11 +1812,21 @@ mod SwapExactTokenTo {
             );
         set_contract_address(beneficiary);
         sell_token.approve(exchange.contract_address, sell_token_max_amount);
+        let integrator_fee_recipient = contract_address_const::<0x0>();
+        let integrator_fee = 0_u128;
 
         // When
         exchange
             .swap_exact_token_to(
-                sell_token_address, sell_token_amount, sell_token_max_amount, buy_token_address, buy_token_amount, beneficiary, routes,
+                sell_token_address,
+                sell_token_amount,
+                sell_token_max_amount,
+                buy_token_address,
+                buy_token_amount,
+                beneficiary,
+                integrator_fee,
+                integrator_fee_recipient,
+                routes,
             );
     }
 
@@ -1675,11 +1857,21 @@ mod SwapExactTokenTo {
             );
         set_contract_address(beneficiary);
         sell_token.approve(exchange.contract_address, sell_token_max_amount);
+        let integrator_fee_recipient = contract_address_const::<0x0>();
+        let integrator_fee = 0_u128;
 
         // When & Then
         exchange
             .swap_exact_token_to(
-                sell_token_address, sell_token_amount, sell_token_max_amount, buy_token_address, buy_token_amount, beneficiary, routes,
+                sell_token_address,
+                sell_token_amount,
+                sell_token_max_amount,
+                buy_token_address,
+                buy_token_amount,
+                beneficiary,
+                integrator_fee,
+                integrator_fee_recipient,
+                routes,
             );
     }
 
@@ -1710,11 +1902,21 @@ mod SwapExactTokenTo {
             );
         set_contract_address(beneficiary);
         sell_token.approve(exchange.contract_address, sell_token_max_amount);
+        let integrator_fee_recipient = contract_address_const::<0x0>();
+        let integrator_fee = 0_u128;
 
         // When & Then
         exchange
             .swap_exact_token_to(
-                sell_token_address, sell_token_amount, sell_token_max_amount, buy_token_address, buy_token_amount, beneficiary, routes,
+                sell_token_address,
+                sell_token_amount,
+                sell_token_max_amount,
+                buy_token_address,
+                buy_token_amount,
+                beneficiary,
+                integrator_fee,
+                integrator_fee_recipient,
+                routes,
             );
     }
 
@@ -1748,11 +1950,21 @@ mod SwapExactTokenTo {
             );
         set_contract_address(beneficiary);
         sell_token.approve(exchange.contract_address, sell_token_max_amount);
+        let integrator_fee_recipient = contract_address_const::<0x0>();
+        let integrator_fee = 0_u128;
 
         // When & Then
         exchange
             .swap_exact_token_to(
-                sell_token_address, sell_token_amount, sell_token_max_amount, buy_token_address, buy_token_amount, beneficiary, routes,
+                sell_token_address,
+                sell_token_amount,
+                sell_token_max_amount,
+                buy_token_address,
+                buy_token_amount,
+                beneficiary,
+                integrator_fee,
+                integrator_fee_recipient,
+                routes,
             );
     }
 
@@ -1773,11 +1985,21 @@ mod SwapExactTokenTo {
         let mut routes = ArrayTrait::new();
         set_contract_address(beneficiary);
         sell_token.approve(exchange.contract_address, sell_token_max_amount);
+        let integrator_fee_recipient = contract_address_const::<0x0>();
+        let integrator_fee = 0_u128;
 
         // When & Then
         exchange
             .swap_exact_token_to(
-                sell_token_address, sell_token_amount, sell_token_max_amount, buy_token_address, buy_token_amount, beneficiary, routes,
+                sell_token_address,
+                sell_token_amount,
+                sell_token_max_amount,
+                buy_token_address,
+                buy_token_amount,
+                beneficiary,
+                integrator_fee,
+                integrator_fee_recipient,
+                routes,
             );
     }
 
@@ -1809,11 +2031,21 @@ mod SwapExactTokenTo {
             );
         set_contract_address(beneficiary);
         sell_token.approve(exchange.contract_address, sell_token_max_amount);
+        let integrator_fee_recipient = contract_address_const::<0x0>();
+        let integrator_fee = 0_u128;
 
         // When & Then
         exchange
             .swap_exact_token_to(
-                sell_token_address, sell_token_amount, sell_token_max_amount, buy_token_address, buy_token_amount, beneficiary, routes,
+                sell_token_address,
+                sell_token_amount,
+                sell_token_max_amount,
+                buy_token_address,
+                buy_token_amount,
+                beneficiary,
+                integrator_fee,
+                integrator_fee_recipient,
+                routes,
             );
     }
 
@@ -1898,10 +2130,22 @@ mod SwapExactTokenTo {
             );
         set_contract_address(beneficiary);
         token_1.approve(exchange.contract_address, sell_token_max_amount);
+        let integrator_fee_recipient = contract_address_const::<0x0>();
+        let integrator_fee = 0_u128;
 
         // When & Then
         exchange
-            .swap_exact_token_to(token_1_address, sell_token_amount, sell_token_max_amount, token_5_address, buy_token_amount, beneficiary, routes);
+            .swap_exact_token_to(
+                token_1_address,
+                sell_token_amount,
+                sell_token_max_amount,
+                token_5_address,
+                buy_token_amount,
+                beneficiary,
+                integrator_fee,
+                integrator_fee_recipient,
+                routes,
+            );
     }
 
     #[test]
@@ -1931,11 +2175,21 @@ mod SwapExactTokenTo {
             );
         set_contract_address(beneficiary);
         sell_token.approve(exchange.contract_address, sell_token_max_amount);
+        let integrator_fee_recipient = contract_address_const::<0x0>();
+        let integrator_fee = 0_u128;
 
         // When & Then
         exchange
             .swap_exact_token_to(
-                sell_token_address, sell_token_amount, sell_token_max_amount, buy_token_address, buy_token_amount, beneficiary, routes,
+                sell_token_address,
+                sell_token_amount,
+                sell_token_max_amount,
+                buy_token_address,
+                buy_token_amount,
+                beneficiary,
+                integrator_fee,
+                integrator_fee_recipient,
+                routes,
             );
     }
 
@@ -1964,11 +2218,21 @@ mod SwapExactTokenTo {
                     additional_swap_params: ArrayTrait::new(),
                 },
             );
+        let integrator_fee_recipient = contract_address_const::<0x0>();
+        let integrator_fee = 0_u128;
 
         // When & Then
         exchange
             .swap_exact_token_to(
-                sell_token_address, sell_token_amount, sell_token_max_amount, buy_token_address, buy_token_amount, beneficiary, routes,
+                sell_token_address,
+                sell_token_amount,
+                sell_token_max_amount,
+                buy_token_address,
+                buy_token_amount,
+                beneficiary,
+                integrator_fee,
+                integrator_fee_recipient,
+                routes,
             );
     }
 }
