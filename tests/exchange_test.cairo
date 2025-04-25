@@ -8,10 +8,11 @@ use avnu_lib::interfaces::erc20::IERC20DispatcherTrait;
 use starknet::class_hash::class_hash_const;
 use starknet::testing::{pop_log_raw, set_contract_address};
 use starknet::{ContractAddress, contract_address_const};
-use super::helper::{deploy_exchange, deploy_mock_token, deploy_old_exchange};
-const ROUTE_PERCENT_FACTOR: u128 = 10000000000;
+use super::helper::{deploy_exchange, deploy_mock_layer_akira, deploy_mock_token, deploy_old_exchange};
 use super::mocks::mock_erc20::MockERC20::Transfer;
 use super::mocks::old_exchange::{IOldExchangeDispatcherTrait};
+
+const ROUTE_PERCENT_FACTOR: u128 = 10000000000;
 
 mod GetAdapterClassHash {
     use super::{IExchangeDispatcherTrait, class_hash_const, contract_address_const, deploy_exchange};
@@ -62,6 +63,59 @@ mod SetAdapterClassHash {
 
         // When & Then
         exchange.set_adapter_class_hash(router_address, new_class_hash);
+    }
+}
+
+mod GetExternalSolverAdapterClassHash {
+    use super::{IExchangeDispatcherTrait, class_hash_const, contract_address_const, deploy_exchange};
+
+    #[test]
+    fn should_return_adapter_class_hash() {
+        // Given
+        let (exchange, _, _) = deploy_exchange();
+        let router_address = contract_address_const::<0x0>();
+        let expected = class_hash_const::<0x0>();
+
+        // When
+        let result = exchange.get_external_solver_adapter_class_hash(router_address);
+
+        // Then
+        assert(result == expected, 'invalid class hash');
+    }
+}
+
+mod SetExternalSolverAdapterClassHashAndParameters {
+    use super::{IExchangeDispatcherTrait, IOwnableDispatcherTrait, class_hash_const, contract_address_const, deploy_exchange, set_contract_address};
+
+    #[test]
+    fn should_set_adapter_class() {
+        // Given
+        let (exchange, ownable, _) = deploy_exchange();
+        let router_address = contract_address_const::<0x2>();
+        let new_class_hash = class_hash_const::<0x1>();
+
+        set_contract_address(ownable.get_owner());
+
+        // When
+        let result = exchange.set_external_solver_adapter_class_hash(router_address, new_class_hash);
+
+        // Then
+        assert(result == true, 'invalid result');
+        let class_hash = exchange.get_external_solver_adapter_class_hash(router_address);
+        assert(class_hash == new_class_hash, 'invalid class hash');
+    }
+
+    #[test]
+    #[should_panic(expected: ('Caller is not the owner', 'ENTRYPOINT_FAILED'))]
+    fn should_fail_when_caller_is_not_the_owner() {
+        // Given
+        let (exchange, _, _) = deploy_exchange();
+        let router_address = contract_address_const::<0x2>();
+        let new_class_hash = class_hash_const::<0x1>();
+        set_contract_address(contract_address_const::<0x1234>());
+
+        // When & Then
+        exchange.set_external_solver_adapter_class_hash(router_address, new_class_hash);
     }
 }
 
@@ -2589,5 +2643,104 @@ mod UpgradeClassAndMigration {
         assert(event == expected_event, 'Invalid beneficiary balance');
         assert(pop_log_raw(buy_token_address).is_none(), 'no more buy_token events');
         assert(pop_log_raw(sell_token_address).is_none(), 'no more sell_token events');
+    }
+}
+
+mod ExternalSolverSwap {
+    use avnu::external_solver_adapters::layer_akira_adapter::{LayerAkiraAdapter};
+    use super::{
+        IERC20DispatcherTrait, IExchangeDispatcherTrait, IOwnableDispatcherTrait, Swap, contract_address_const, deploy_exchange,
+        deploy_mock_layer_akira, deploy_mock_token, pop_log_raw, set_contract_address,
+    };
+
+    #[test]
+    #[available_gas(20000000)]
+    fn should_call_external_solver_swap() {
+        // Given
+        let (exchange, ownable, _) = deploy_exchange();
+        let beneficiary = contract_address_const::<0x12345>();
+        let sell_token = deploy_mock_token(beneficiary, 10, 1);
+        let sell_token_address = sell_token.contract_address;
+        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        set_contract_address(ownable.get_owner());
+        let layer_akira_mock = deploy_mock_layer_akira();
+        exchange.set_external_solver_adapter_class_hash(layer_akira_mock, LayerAkiraAdapter::TEST_CLASS_HASH.try_into().unwrap());
+        let buy_token_address = buy_token.contract_address;
+        let sell_token_amount = u256 { low: 10, high: 0 };
+        let buy_token_min_amount = u256 { low: 9, high: 0 };
+        set_contract_address(beneficiary);
+        sell_token.approve(exchange.contract_address, sell_token_amount);
+        let calldata: Array<felt252> = array![
+            sell_token_amount.low.into(),
+            sell_token_amount.high.into(),
+            buy_token_min_amount.low.into(),
+            buy_token_min_amount.high.into(),
+            0x015543c3708653cda9d418b4ccd3be11368e40636c10c44b18cfe756b6d88b29, // 'swap' function selector
+            0x5.into(),
+            beneficiary.into(),
+            sell_token_address.into(),
+            sell_token_amount.low.into(),
+            sell_token_amount.high.into(),
+            buy_token.contract_address.into(),
+        ];
+
+        // When
+        let result = exchange.swap_external_solver(beneficiary, sell_token_address, buy_token_address, beneficiary, layer_akira_mock, calldata);
+
+        // Then
+        assert(result == true, 'invalid result');
+        let (mut keys, mut data) = pop_log_raw(exchange.contract_address).unwrap();
+        let event: Swap = starknet::Event::deserialize(ref keys, ref data).unwrap();
+        let expected_event = Swap {
+            taker_address: beneficiary,
+            sell_address: sell_token_address,
+            sell_amount: sell_token_amount,
+            buy_address: buy_token_address,
+            buy_amount: u256 { low: 10, high: 0 },
+            beneficiary: beneficiary,
+        };
+        assert(event == expected_event, 'invalid swap event');
+        assert(pop_log_raw(exchange.contract_address).is_none(), 'no more events');
+        let balance = sell_token.balanceOf(beneficiary);
+        assert(balance == 0_u256, 'Invalid beneficiary balance');
+        let balance = buy_token.balanceOf(beneficiary);
+        assert(balance == 10_u256, 'Invalid beneficiary balance');
+    }
+
+    #[test]
+    #[available_gas(20000000)]
+    #[should_panic(expected: ('Unknown external solver', 'ENTRYPOINT_FAILED'))]
+    fn should_fail_when_solver_adapter_does_not_exist() {
+        // Given
+        let (exchange, ownable, _) = deploy_exchange();
+        let beneficiary = contract_address_const::<0x12345>();
+        let sell_token = deploy_mock_token(beneficiary, 10, 1);
+        let sell_token_address = sell_token.contract_address;
+        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        set_contract_address(ownable.get_owner());
+        let layer_akira_mock = deploy_mock_layer_akira();
+        exchange.set_external_solver_adapter_class_hash(layer_akira_mock, LayerAkiraAdapter::TEST_CLASS_HASH.try_into().unwrap());
+        let buy_token_address = buy_token.contract_address;
+        let sell_token_amount = u256 { low: 10, high: 0 };
+        let buy_token_min_amount = u256 { low: 9, high: 0 };
+        set_contract_address(beneficiary);
+        sell_token.approve(exchange.contract_address, sell_token_amount);
+        let calldata: Array<felt252> = array![
+            sell_token_amount.low.into(),
+            sell_token_amount.high.into(),
+            buy_token_min_amount.low.into(),
+            buy_token_min_amount.high.into(),
+            0x015543c3708653cda9d418b4ccd3be11368e40636c10c44b18cfe756b6d88b29, // 'swap' function selector
+            0x5.into(),
+            beneficiary.into(),
+            sell_token_address.into(),
+            sell_token_amount.low.into(),
+            sell_token_amount.high.into(),
+            buy_token.contract_address.into(),
+        ];
+        let false_solver = contract_address_const::<'FALSE_SOLVER'>();
+
+        // When & Then
+        exchange.swap_external_solver(beneficiary, sell_token_address, buy_token_address, beneficiary, false_solver, calldata);
     }
 }

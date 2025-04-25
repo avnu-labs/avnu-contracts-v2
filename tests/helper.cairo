@@ -13,6 +13,7 @@ use starknet::testing::{pop_log_raw, set_contract_address};
 use starknet::{ClassHash, ContractAddress, contract_address_const};
 use super::mocks::mock_amm::{MockEkubo, MockJediSwap, MockMySwap, MockSithSwap, MockSwapAdapter, MockTenkSwap};
 use super::mocks::mock_erc20::MockERC20;
+use super::mocks::mock_layerakira::{MockLayerAkira};
 use super::mocks::old_exchange::{IOldExchangeDispatcher, IOldExchangeDispatcherTrait, OldExchange};
 
 pub fn deploy_mock_token(recipient: ContractAddress, balance: felt252, salt: felt252) -> IERC20Dispatcher {
@@ -128,4 +129,11 @@ pub fn deploy_mock_ekubo() -> IEkuboRouterDispatcher {
     let (address, _) = deploy_syscall(MockEkubo::TEST_CLASS_HASH.try_into().unwrap(), 0, constructor_args.span(), false)
         .expect('mock ekubo deploy failed');
     IEkuboRouterDispatcher { contract_address: address }
+}
+
+pub fn deploy_mock_layer_akira() -> ContractAddress {
+    let mut constructor_args: Array<felt252> = ArrayTrait::new();
+    let (address, _) = deploy_syscall(MockLayerAkira::TEST_CLASS_HASH.try_into().unwrap(), 0, constructor_args.span(), false)
+        .expect('mock layer akira deploy failed');
+    address
 }
