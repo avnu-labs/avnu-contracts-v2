@@ -1,4 +1,5 @@
 pub mod ekubo_adapter;
+pub mod endur_adapter;
 pub mod haiko_adapter;
 pub mod haiko_replicating_solver_adapter;
 pub mod jediswap_adapter;
