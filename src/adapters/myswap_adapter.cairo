@@ -32,5 +32,18 @@ pub mod MyswapAdapter {
             IERC20Dispatcher { contract_address: sell_token_address }.approve(exchange_address, sell_token_amount);
             IMySwapRouterDispatcher { contract_address: exchange_address }.swap(pool_id, sell_token_address, sell_token_amount, buy_token_min_amount);
         }
+
+        fn quote(
+            self: @ContractState,
+            exchange_address: ContractAddress,
+            sell_token_address: ContractAddress,
+            sell_token_amount: u256,
+            buy_token_address: ContractAddress,
+            buy_token_min_amount: u256,
+            to: ContractAddress,
+            additional_swap_params: Array<felt252>,
+        ) -> Option<u256> {
+            Option::None
+        }
     }
 }

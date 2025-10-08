@@ -25,4 +25,15 @@ pub trait ISwapAdapter<TContractState> {
         to: ContractAddress,
         additional_swap_params: Array<felt252>,
     );
+
+    fn quote(
+        self: @TContractState,
+        exchange_address: ContractAddress,
+        sell_token_address: ContractAddress,
+        sell_token_amount: u256,
+        buy_token_address: ContractAddress,
+        buy_token_min_amount: u256,
+        to: ContractAddress,
+        additional_swap_params: Array<felt252>,
+    ) -> Option<u256>;
 }

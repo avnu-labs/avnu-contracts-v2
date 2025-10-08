@@ -60,5 +60,18 @@ pub mod MyswapV2Adapter {
             // Swap
             myswapv2.swap(pool_key, is_token_0, sell_token_amount, true, sqrt_ratio_limit);
         }
+
+        fn quote(
+            self: @ContractState,
+            exchange_address: ContractAddress,
+            sell_token_address: ContractAddress,
+            sell_token_amount: u256,
+            buy_token_address: ContractAddress,
+            buy_token_min_amount: u256,
+            to: ContractAddress,
+            additional_swap_params: Array<felt252>,
+        ) -> Option<u256> {
+            Option::None
+        }
     }
 }
