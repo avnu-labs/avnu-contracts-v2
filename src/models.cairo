@@ -21,6 +21,8 @@ impl RouteSwapSerde of Serde<RouteSwap> {
         match self {
             RouteSwap::Direct(route) => Serde::serialize(route, ref output),
             RouteSwap::Branch(route) => {
+                // Use a marker to indicate that it's a branch. This is to be retrocompatible with the original encoding
+                // that only had one variant
                 output.append(BRANCH_MARKER);
                 Serde::serialize(route, ref output)
             },

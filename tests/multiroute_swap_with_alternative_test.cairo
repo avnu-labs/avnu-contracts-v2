@@ -118,11 +118,13 @@ mod SwapWithAlternative {
         let buy_token_amount = u256 { low: 9, high: 0 };
 
         let mut additional_swap_params = ArrayTrait::new();
+        // Start with an AMM where trading 5 unit gives a price of P = 1.8
         Serde::serialize(@MockPriceFunction::UniV2(MockUniV2PriceFunction { 
             reserve_a: 10,
             reserve_b: 28
         }), ref additional_swap_params);
 
+        // Use alternative if we get a price of at least P = 2
         let mut alternatives = ArrayTrait::new();
         alternatives
             .append(
@@ -175,7 +177,6 @@ mod SwapWithAlternative {
 
         // Verify that beneficiary receives tokens to
         let balance = buy_token.balanceOf(beneficiary);
-        println!("{}",balance);
         assert(balance == 14_u256, 'Invalid beneficiary balance');
     }
 
