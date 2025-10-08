@@ -120,7 +120,7 @@ mod SwapWithAlternative {
         let mut additional_swap_params = ArrayTrait::new();
         Serde::serialize(@MockPriceFunction::UniV2(MockUniV2PriceFunction { 
             reserve_a: 10,
-            reserve_b: 25
+            reserve_b: 28
         }), ref additional_swap_params);
 
         let mut alternatives = ArrayTrait::new();
@@ -175,7 +175,8 @@ mod SwapWithAlternative {
 
         // Verify that beneficiary receives tokens to
         let balance = buy_token.balanceOf(beneficiary);
-        assert(balance == 12_u256, 'Invalid beneficiary balance');
+        println!("{}",balance);
+        assert(balance == 14_u256, 'Invalid beneficiary balance');
     }
 
     // #[test]

@@ -559,7 +559,7 @@ pub mod Exchange {
             let (sell_token_amount, overflows) = muldiv(sell_token_balance, swap.principal.percent.into(), MAX_ROUTE_PERCENT.into(), false);
             assert(overflows == false, 'Overflow: Invalid percent');
 
-            // CExecute branch swap
+            // Execute branch swap
             let mut remaining_sell_token_amount = sell_token_amount;
             for alternative in swap.alternatives {
                 remaining_sell_token_amount -= self.apply_alternative_swap(
@@ -620,24 +620,25 @@ pub mod Exchange {
 
             let exchange = self.resolve_exchange_dispatcher(swap.exchange_address);
 
-            let (mut max_iterations, mut amount_out) = (0_u8, Option::None);
-            while max_iterations < 5 && amount_out.is_none() {
+            let (mut iteration, mut amount_out) = (0_u8, Option::None);
+            while iteration < 5 && amount_out.is_none()  {
                 let buy_token_amount = exchange
-                    .quote(swap.exchange_address, sell_token, sell_token_amount, buy_token, 0, contract_address, swap.additional_swap_params.clone())
-                    .unwrap_or_default();
+                    .quote(swap.exchange_address, sell_token, sell_token_amount, buy_token, contract_address, swap.additional_swap_params.clone());
 
-                // compute price
+                // compute price, we use 64 bits precision so 2**64 == 18446744073709551616
                 let (price, overflow) = muldiv(buy_token_amount, 18446744073709551616, sell_token_amount, true);
                 if !overflow && price >= swap.minimum_price {
                     amount_out = Option::Some(sell_token_amount);
                 }
 
-                let (new_sell_token_amount, _) = muldiv(sell_token_amount, 1, 2, true);
-                sell_token_amount = if new_sell_token_amount == 0 { 1 } else { new_sell_token_amount };
+                // We reduce the amount in by 10% at each iteration, resulting in halving the amout in at iteration 5.
+                let (new_sell_token_amount, _) = muldiv(sell_token_amount, 90, 100, false);
 
-                max_iterations += 1;
+                sell_token_amount = if new_sell_token_amount == 0 { 1 } else { new_sell_token_amount };
+                iteration += 1;
             };
 
+            // Returns None if we didn't manage to match the price
             amount_out
         }
 

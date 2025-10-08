@@ -14,7 +14,6 @@ use starknet::{ClassHash, ContractAddress, contract_address_const};
 use super::mocks::mock_amm::{MockJediSwap, MockMySwap, MockSithSwap, MockSwapAdapter, MockTenkSwap};
 use super::mocks::mock_erc20::MockERC20;
 use super::mocks::mock_layerakira::MockLayerAkira;
-use super::mocks::old_exchange::{IOldExchangeDispatcher, IOldExchangeDispatcherTrait, OldExchange};
 
 pub fn deploy_mock_token(recipient: ContractAddress, balance: felt252, salt: felt252) -> IERC20Dispatcher {
     let mut constructor_args: Array<felt252> = ArrayTrait::new();

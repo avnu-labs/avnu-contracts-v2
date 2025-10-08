@@ -59,6 +59,7 @@ pub struct TokenAmount {
 #[starknet::interface]
 pub trait IEkuboRouter<TContractState> {
     fn swap(ref self: TContractState, node: RouteNode, token_amount: TokenAmount) -> Delta;
+    fn quote_swap(ref self: TContractState, node: RouteNode, token_amount: TokenAmount) -> Delta;
     fn clear(ref self: TContractState, token: ContractAddress) -> u256;
 }
 
@@ -135,6 +136,49 @@ pub mod EkuboAdapter {
             let router = IEkuboRouterDispatcher { contract_address: router_address };
             router.swap(route_node, token_amount);
             router.clear(buy_token_address);
+        }
+
+        fn quote(
+            self: @ContractState,
+            exchange_address: ContractAddress,
+            sell_token_address: ContractAddress,
+            sell_token_amount: u256,
+            buy_token_address: ContractAddress,
+            to: ContractAddress,
+            additional_swap_params: Array<felt252>,
+        ) -> u256 {
+            // Verify additional_swap_params
+            assert(additional_swap_params.len() == 6, 'Invalid swap params');
+
+            // Prepare swap params
+            let router_address = contract_address_const::<ROUTER_ADDRESS>();
+            let pool_key = PoolKey {
+                token0: (*additional_swap_params[0]).try_into().unwrap(),
+                token1: (*additional_swap_params[1]).try_into().unwrap(),
+                fee: (*additional_swap_params[2]).try_into().unwrap(),
+                tick_spacing: (*additional_swap_params[3]).try_into().unwrap(),
+                extension: (*additional_swap_params[4]).try_into().unwrap(),
+            };
+            let sqrt_ratio_distance: u256 = (*additional_swap_params[5]).into();
+            let is_token1 = pool_key.token1 == sell_token_address;
+            let pool_price = IEkuboCoreDispatcher { contract_address: exchange_address }.get_pool_price(pool_key);
+            let sqrt_ratio_limit = compute_sqrt_ratio_limit(pool_price.sqrt_ratio, sqrt_ratio_distance, is_token1, MIN_SQRT_RATIO, MAX_SQRT_RATIO);
+            let route_node = RouteNode { pool_key, sqrt_ratio_limit, skip_ahead: 100 };
+            assert(sell_token_amount.high == 0, 'Overflow: Unsupported amount');
+            let token_amount = TokenAmount { token: sell_token_address, amount: i129 { mag: sell_token_amount.low, sign: false } };
+
+            // Transfer
+            IERC20Dispatcher { contract_address: sell_token_address }.transfer(router_address, sell_token_amount);
+
+            // Swap
+            let router = IEkuboRouterDispatcher { contract_address: router_address };
+            let delta = router.quote_swap(route_node, token_amount);
+            
+            if is_token1 {
+                return u256 { high: 0, low: delta.amount0.mag };
+            } else {
+                return u256 { high: 0, low: delta.amount1.mag };
+            }
         }
     }
 }

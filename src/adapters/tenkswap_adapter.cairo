@@ -5,8 +5,6 @@ pub trait ITenkSwapRouter<TContractState> {
     fn swapExactTokensForTokens(
         self: @TContractState, amountIn: u256, amountOutMin: u256, path: Array<ContractAddress>, to: ContractAddress, deadline: u64,
     ) -> Array<u256>;
-
-    fn quote(self: @TContractState, amountA: u256, reserveA: ContractAddress, reserveB: ContractAddress) -> u256;
 }
 
 #[starknet::contract]
@@ -51,14 +49,10 @@ pub mod TenkswapAdapter {
             sell_token_address: ContractAddress,
             sell_token_amount: u256,
             buy_token_address: ContractAddress,
-            buy_token_min_amount: u256,
             to: ContractAddress,
             additional_swap_params: Array<felt252>,
-        ) -> Option<u256> {
-            let quote = ITenkSwapRouterDispatcher { contract_address: exchange_address }
-                .quote(sell_token_amount, sell_token_address, buy_token_address);
-
-            Option::Some(quote)
+        ) -> u256 {
+            0
         }
     }
 }

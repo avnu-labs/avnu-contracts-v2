@@ -67,11 +67,10 @@ pub mod MyswapV2Adapter {
             sell_token_address: ContractAddress,
             sell_token_amount: u256,
             buy_token_address: ContractAddress,
-            buy_token_min_amount: u256,
             to: ContractAddress,
             additional_swap_params: Array<felt252>,
-        ) -> Option<u256> {
-            Option::None
+        ) -> u256 {
+            0
         }
     }
 }

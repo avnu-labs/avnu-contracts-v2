@@ -34,5 +34,17 @@ pub mod EndurAdapter {
             IERC20Dispatcher { contract_address: sell_token_address }.approve(buy_token_address, sell_token_amount);
             IEndurLstDispatcher { contract_address: buy_token_address }.deposit_with_referral(sell_token_amount,  to, "9F757");
         }
+
+        fn quote(
+            self: @ContractState,
+            exchange_address: ContractAddress,
+            sell_token_address: ContractAddress,
+            sell_token_amount: u256,
+            buy_token_address: ContractAddress,
+            to: ContractAddress,
+            additional_swap_params: Array<felt252>,
+        ) -> u256 { 
+            0
+        }
     }
 }

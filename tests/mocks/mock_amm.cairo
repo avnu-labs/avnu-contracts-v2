@@ -165,10 +165,9 @@ pub mod MockSwapAdapter {
                 sell_token_address,
                 sell_token_amount,
                 buy_token_address,
-                buy_token_min_amount,
                 to,
                 additional_swap_params
-            ).unwrap_or_default();
+            );
 
             IERC20Dispatcher { contract_address: sell_token_address }.burn(caller, sell_token_amount);
             IERC20Dispatcher { contract_address: buy_token_address }.mint(caller, buy_token_amount);
@@ -180,10 +179,9 @@ pub mod MockSwapAdapter {
             sell_token_address: ContractAddress,
             sell_token_amount: u256,
             buy_token_address: ContractAddress,
-            buy_token_min_amount: u256,
             to: ContractAddress,
             additional_swap_params: Array<felt252>,
-        ) -> Option<u256> {
+        ) -> u256 {
             let mut params = additional_swap_params.clone().span();
             let price_function: MockPriceFunction = Serde::deserialize(ref params)
                 .unwrap_or(MockPriceFunction::Constant(MockConstantPriceFunction { price: 18446744073709551616 }));
@@ -191,7 +189,7 @@ pub mod MockSwapAdapter {
             let price = price_function.price(sell_token_amount);
             let (buy_token_amount, _) = muldiv(sell_token_amount, price, 18446744073709551616, false);
  
-            Option::Some(buy_token_amount)
+            buy_token_amount
         }
     }
 }
