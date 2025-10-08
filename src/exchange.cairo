@@ -595,6 +595,8 @@ pub mod Exchange {
             assert(swap.percent > 0, 'Invalid route percent');
             assert(swap.percent <= MAX_ROUTE_PERCENT, 'Invalid route percent');
 
+            // Try to match the minimum price set for the alternative swap to be effective. If the price constraint cannot
+            // be fullfilled then return None
             let adjusted_amount_in = self
                 .optimize_alternative_swap_amount_in(contract_address, sell_token, sell_token_amount, buy_token, swap.clone())?;
 
