@@ -1,7 +1,7 @@
 mod Swap {
     use avnu::adapters::ISwapAdapterDispatcherTrait;
-    use crate::helper::{deploy_mock_sithswap, deploy_mock_token, deploy_sithswap_adapter};
     use starknet::{contract_address_const, get_caller_address};
+    use crate::helper::{deploy_mock_sithswap, deploy_mock_token, deploy_sithswap_adapter};
 
     #[test]
     fn should_call_sithswap() {

@@ -37,9 +37,7 @@ pub mod FeeComponent {
     use avnu_lib::math::muldiv::muldiv;
     use core::num::traits::Zero;
     use starknet::ContractAddress;
-    use starknet::storage::Map;
-    use starknet::storage::{StorageMapReadAccess, StorageMapWriteAccess, StoragePointerReadAccess, StoragePointerWriteAccess};
-
+    use starknet::storage::{Map, StorageMapReadAccess, StorageMapWriteAccess, StoragePointerReadAccess, StoragePointerWriteAccess};
     use super::{FeePolicy, TokenFeeConfig};
 
     const MAX_AVNU_FEES_BPS: u128 = 100;

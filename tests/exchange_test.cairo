@@ -1,7 +1,6 @@
 use avnu::components::fee::{IFeeDispatcher, IFeeDispatcherTrait, TokenFeeConfig};
-use avnu::exchange::Exchange;
 use avnu::exchange::Exchange::Swap;
-use avnu::exchange::{IExchangeDispatcher, IExchangeDispatcherTrait};
+use avnu::exchange::{Exchange, IExchangeDispatcher, IExchangeDispatcherTrait};
 use avnu::models::Route;
 use avnu_lib::components::ownable::{IOwnableDispatcher, IOwnableDispatcherTrait};
 use avnu_lib::interfaces::erc20::IERC20DispatcherTrait;
@@ -10,7 +9,7 @@ use starknet::testing::{pop_log_raw, set_contract_address};
 use starknet::{ContractAddress, contract_address_const};
 use super::helper::{deploy_exchange, deploy_mock_layer_akira, deploy_mock_token, deploy_old_exchange};
 use super::mocks::mock_erc20::MockERC20::Transfer;
-use super::mocks::old_exchange::{IOldExchangeDispatcherTrait};
+use super::mocks::old_exchange::IOldExchangeDispatcherTrait;
 
 const ROUTE_PERCENT_FACTOR: u128 = 10000000000;
 
@@ -2647,7 +2646,7 @@ mod UpgradeClassAndMigration {
 }
 
 mod ExternalSolverSwap {
-    use avnu::external_solver_adapters::layer_akira_adapter::{LayerAkiraAdapter};
+    use avnu::external_solver_adapters::layer_akira_adapter::LayerAkiraAdapter;
     use super::{
         IERC20DispatcherTrait, IExchangeDispatcherTrait, IOwnableDispatcherTrait, Swap, contract_address_const, deploy_exchange,
         deploy_mock_layer_akira, deploy_mock_token, pop_log_raw, set_contract_address,
@@ -2671,17 +2670,10 @@ mod ExternalSolverSwap {
         set_contract_address(beneficiary);
         sell_token.approve(exchange.contract_address, sell_token_amount);
         let calldata: Array<felt252> = array![
-            sell_token_amount.low.into(),
-            sell_token_amount.high.into(),
-            buy_token_min_amount.low.into(),
-            buy_token_min_amount.high.into(),
+            sell_token_amount.low.into(), sell_token_amount.high.into(), buy_token_min_amount.low.into(), buy_token_min_amount.high.into(),
             0x015543c3708653cda9d418b4ccd3be11368e40636c10c44b18cfe756b6d88b29, // 'swap' function selector
-            0x5.into(),
-            beneficiary.into(),
-            sell_token_address.into(),
-            sell_token_amount.low.into(),
-            sell_token_amount.high.into(),
-            buy_token.contract_address.into(),
+            0x5.into(), beneficiary.into(),
+            sell_token_address.into(), sell_token_amount.low.into(), sell_token_amount.high.into(), buy_token.contract_address.into(),
         ];
 
         // When
@@ -2726,17 +2718,10 @@ mod ExternalSolverSwap {
         set_contract_address(beneficiary);
         sell_token.approve(exchange.contract_address, sell_token_amount);
         let calldata: Array<felt252> = array![
-            sell_token_amount.low.into(),
-            sell_token_amount.high.into(),
-            buy_token_min_amount.low.into(),
-            buy_token_min_amount.high.into(),
+            sell_token_amount.low.into(), sell_token_amount.high.into(), buy_token_min_amount.low.into(), buy_token_min_amount.high.into(),
             0x015543c3708653cda9d418b4ccd3be11368e40636c10c44b18cfe756b6d88b29, // 'swap' function selector
-            0x5.into(),
-            beneficiary.into(),
-            sell_token_address.into(),
-            sell_token_amount.low.into(),
-            sell_token_amount.high.into(),
-            buy_token.contract_address.into(),
+            0x5.into(), beneficiary.into(),
+            sell_token_address.into(), sell_token_amount.low.into(), sell_token_amount.high.into(), buy_token.contract_address.into(),
         ];
         let false_solver = contract_address_const::<'FALSE_SOLVER'>();
 

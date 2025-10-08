@@ -1,9 +1,8 @@
 use avnu::components::fee::IFeeDispatcher;
 use avnu_lib::interfaces::erc20::IERC20Dispatcher;
-use starknet::ContractAddress;
-use starknet::contract_address_const;
 use starknet::syscalls::deploy_syscall;
 use starknet::testing::pop_log_raw;
+use starknet::{ContractAddress, contract_address_const};
 use super::mocks::fee_mock::{FeeMock, IFeeMockDispatcher};
 use super::mocks::mock_erc20::MockERC20;
 

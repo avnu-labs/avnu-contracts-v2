@@ -1,8 +1,7 @@
-use avnu::components::fee::{FeePolicy, TokenFeeConfig};
-use avnu::components::fee::{IFeeDispatcherTrait};
-use crate::components::mocks::fee_mock::{IFeeMockDispatcherTrait};
+use avnu::components::fee::{FeePolicy, IFeeDispatcherTrait, TokenFeeConfig};
 use starknet::contract_address_const;
 use starknet::testing::set_contract_address;
+use crate::components::mocks::fee_mock::IFeeMockDispatcherTrait;
 use super::helper::{deploy_fee, deploy_fee_with_address, deploy_fee_with_defaults, deploy_mock_token, get_common_actors};
 
 fn a_token_fee_config(weight: u32) -> TokenFeeConfig {
@@ -260,8 +259,10 @@ mod SetWhitelistedIntegrator {
 }
 
 mod GetFees {
-    use super::{FeePolicy, IFeeMockDispatcherTrait, TokenFeeConfig, deploy_fee_with_defaults};
-    use super::{IFeeDispatcherTrait, contract_address_const, get_common_actors, set_contract_address};
+    use super::{
+        FeePolicy, IFeeDispatcherTrait, IFeeMockDispatcherTrait, TokenFeeConfig, contract_address_const, deploy_fee_with_defaults, get_common_actors,
+        set_contract_address,
+    };
 
     // FeeOnBuy, route len = 1, integrator not whitelisted
     #[test]
@@ -443,8 +444,7 @@ mod GetFees {
 
 mod CollectFees {
     use avnu_lib::interfaces::erc20::IERC20DispatcherTrait;
-    use super::IFeeMockDispatcherTrait;
-    use super::{contract_address_const, deploy_fee_with_address, deploy_mock_token, get_common_actors};
+    use super::{IFeeMockDispatcherTrait, contract_address_const, deploy_fee_with_address, deploy_mock_token, get_common_actors};
 
     fn collect_fee_exchange_and_integrator() {
         // Given

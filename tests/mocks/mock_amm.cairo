@@ -1,42 +1,9 @@
 use super::mock_erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
 
 #[starknet::contract]
-pub mod MockEkubo {
-    use avnu::adapters::ekubo_adapter::{Delta, IEkuboRouter, PoolKey, PoolPrice, SwapParameters, i129};
-
-    use starknet::ContractAddress;
-    use starknet::contract_address_const;
-
-    #[storage]
-    struct Storage {}
-
-    #[abi(embed_v0)]
-    impl RouterImpl of IEkuboRouter<ContractState> {
-        fn swap(ref self: ContractState, pool_key: PoolKey, params: SwapParameters) -> Delta {
-            assert(pool_key.token0 == contract_address_const::<0x1>(), 'Invalid token0');
-            assert(pool_key.token1 == contract_address_const::<0x2>(), 'Invalid token1');
-            assert(pool_key.fee == 0x3, 'Invalid fee');
-            assert(pool_key.tick_spacing == 0x4, 'Invalid tick_spacing');
-            assert(pool_key.extension == contract_address_const::<0x5>(), 'Invalid extension');
-            Delta { amount0: i129 { mag: 0, sign: false }, amount1: i129 { mag: 0, sign: false } }
-        }
-        fn lock(ref self: ContractState, data: Array<felt252>) -> Array<felt252> {
-            ArrayTrait::new()
-        }
-        fn get_pool_price(self: @ContractState, pool_key: PoolKey) -> PoolPrice {
-            PoolPrice { sqrt_ratio: 0, tick: i129 { mag: 0, sign: false } }
-        }
-        fn withdraw(ref self: ContractState, token_address: ContractAddress, recipient: ContractAddress, amount: u128) {}
-        fn pay(ref self: ContractState, token_address: ContractAddress) {}
-    }
-}
-
-#[starknet::contract]
 pub mod MockJediSwap {
     use avnu::adapters::jediswap_adapter::IJediSwapRouter;
-
-    use starknet::ContractAddress;
-    use starknet::contract_address_const;
+    use starknet::{ContractAddress, contract_address_const};
 
     #[storage]
     struct Storage {}
@@ -79,9 +46,7 @@ pub mod MockMySwap {
 #[starknet::contract]
 pub mod MockSithSwap {
     use avnu::adapters::sithswap_adapter::{ISithSwapRouter, Route};
-
-    use starknet::ContractAddress;
-    use starknet::contract_address_const;
+    use starknet::{ContractAddress, contract_address_const};
 
     #[storage]
     struct Storage {}
@@ -106,8 +71,7 @@ pub mod MockSithSwap {
 #[starknet::contract]
 pub mod MockTenkSwap {
     use avnu::adapters::tenkswap_adapter::ITenkSwapRouter;
-    use starknet::ContractAddress;
-    use starknet::contract_address_const;
+    use starknet::{ContractAddress, contract_address_const};
 
     #[storage]
     struct Storage {}

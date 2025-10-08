@@ -1,9 +1,9 @@
+use avnu::adapters::ISwapAdapterDispatcher;
 use avnu::adapters::ekubo_adapter::{EkuboAdapter, IEkuboRouterDispatcher};
 use avnu::adapters::jediswap_adapter::{IJediSwapRouterDispatcher, JediswapAdapter};
 use avnu::adapters::myswap_adapter::{IMySwapRouterDispatcher, MyswapAdapter};
 use avnu::adapters::sithswap_adapter::{ISithSwapRouterDispatcher, SithswapAdapter};
 use avnu::adapters::tenkswap_adapter::{ITenkSwapRouterDispatcher, TenkswapAdapter};
-use avnu::adapters::{ISwapAdapterDispatcher};
 use avnu::components::fee::IFeeDispatcher;
 use avnu::exchange::{Exchange, IExchangeDispatcher, IExchangeDispatcherTrait};
 use avnu_lib::components::ownable::IOwnableDispatcher;
@@ -11,9 +11,9 @@ use avnu_lib::interfaces::erc20::IERC20Dispatcher;
 use starknet::syscalls::deploy_syscall;
 use starknet::testing::{pop_log_raw, set_contract_address};
 use starknet::{ClassHash, ContractAddress, contract_address_const};
-use super::mocks::mock_amm::{MockEkubo, MockJediSwap, MockMySwap, MockSithSwap, MockSwapAdapter, MockTenkSwap};
+use super::mocks::mock_amm::{MockJediSwap, MockMySwap, MockSithSwap, MockSwapAdapter, MockTenkSwap};
 use super::mocks::mock_erc20::MockERC20;
-use super::mocks::mock_layerakira::{MockLayerAkira};
+use super::mocks::mock_layerakira::MockLayerAkira;
 use super::mocks::old_exchange::{IOldExchangeDispatcher, IOldExchangeDispatcherTrait, OldExchange};
 
 pub fn deploy_mock_token(recipient: ContractAddress, balance: felt252, salt: felt252) -> IERC20Dispatcher {
@@ -121,14 +121,6 @@ pub fn deploy_ekubo_adapter() -> ISwapAdapterDispatcher {
     let (address, _) = deploy_syscall(EkuboAdapter::TEST_CLASS_HASH.try_into().unwrap(), 0, constructor_args.span(), false)
         .expect('ekubo adapter deploy failed');
     ISwapAdapterDispatcher { contract_address: address }
-}
-
-
-pub fn deploy_mock_ekubo() -> IEkuboRouterDispatcher {
-    let mut constructor_args: Array<felt252> = ArrayTrait::new();
-    let (address, _) = deploy_syscall(MockEkubo::TEST_CLASS_HASH.try_into().unwrap(), 0, constructor_args.span(), false)
-        .expect('mock ekubo deploy failed');
-    IEkuboRouterDispatcher { contract_address: address }
 }
 
 pub fn deploy_mock_layer_akira() -> ContractAddress {

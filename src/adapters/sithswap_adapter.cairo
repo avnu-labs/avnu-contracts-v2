@@ -19,8 +19,7 @@ pub mod SithswapAdapter {
     use avnu::adapters::ISwapAdapter;
     use avnu_lib::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
     use starknet::{ContractAddress, get_block_timestamp};
-    use super::Route;
-    use super::{ISithSwapRouterDispatcher, ISithSwapRouterDispatcherTrait};
+    use super::{ISithSwapRouterDispatcher, ISithSwapRouterDispatcherTrait, Route};
 
     #[storage]
     struct Storage {}

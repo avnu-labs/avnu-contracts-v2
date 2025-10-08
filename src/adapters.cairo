@@ -11,7 +11,6 @@ pub mod sithswap_adapter;
 pub mod starkdefi_adapter;
 pub mod tenkswap_adapter;
 pub mod vstrk_adapter;
-
 use starknet::ContractAddress;
 
 #[starknet::interface]

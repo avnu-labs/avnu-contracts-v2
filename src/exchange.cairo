@@ -484,7 +484,7 @@ pub mod Exchange {
                 let buy_token_balance = buy_token.balanceOf(contract_address);
                 buy_token_last_amount_received = buy_token_balance - buy_token_amount_received;
                 buy_token_amount_received = buy_token_balance;
-            };
+            }
 
             (sell_token_amount_used, buy_token_amount_received)
         }
