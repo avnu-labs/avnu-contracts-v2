@@ -646,7 +646,7 @@ pub mod Exchange {
 
                 // compute price, we use 64 bits precision so 2**64 == 18446744073709551616
                 let (price, overflow) = muldiv(buy_token_amount, 18446744073709551616, sell_token_amount, true);
-                if !overflow && price >= swap.minimum_price {
+                if !overflow && price >= minimum_price {
                     amount_out = Option::Some(sell_token_amount);
                 }
 
