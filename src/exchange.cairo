@@ -555,9 +555,23 @@ pub mod Exchange {
         fn apply_branch_swap(
             ref self: ContractState, contract_address: ContractAddress, sell_token: ContractAddress, buy_token: ContractAddress, swap: BranchSwap,
         ) {
+            assert(swap.principal.percent > 0, 'Invalid route percent');
+            assert(swap.principal.percent <= MAX_ROUTE_PERCENT, 'Invalid route percent');
+
             let sell_token_balance = IERC20Dispatcher { contract_address: sell_token }.balanceOf(contract_address);
-            let (sell_token_amount, overflows) = muldiv(sell_token_balance, swap.principal.percent.into(), MAX_ROUTE_PERCENT.into(), false);
-            assert(overflows == false, 'Overflow: Invalid percent');
+            let (sell_token_amount, overflow) = muldiv(sell_token_balance, swap.principal.percent.into(), MAX_ROUTE_PERCENT.into(), false);
+            assert(overflow == false, 'Overflow: Invalid percent');
+       
+            // Compute the minimal price of execution for the alternative. We aim for 0.5% more than the principal price for the alternative to be executed.
+            let principal_amount_out = self
+                .resolve_exchange_dispatcher(swap.principal.exchange_address)
+                .quote(swap.principal.exchange_address, sell_token, sell_token_amount, buy_token, contract_address, swap.principal.additional_swap_params.clone());
+
+            let (principal_price, overflow) = muldiv(principal_amount_out, 18446744073709551616, sell_token_amount, true);
+            assert(overflow == false, 'Overflow: Invalid price');
+
+            let (minimum_price, overflow) = muldiv(principal_price, 1005, 100, false);
+            assert(overflow == false, 'Overflow: Invalid price');
 
             // Execute branch swap
             let mut remaining_sell_token_amount = sell_token_amount;
@@ -567,6 +581,7 @@ pub mod Exchange {
                     sell_token,
                     remaining_sell_token_amount,
                     buy_token,
+                    minimum_price,
                     alternative
                 ).unwrap_or_default();
             };
@@ -590,6 +605,7 @@ pub mod Exchange {
             sell_token: ContractAddress,
             sell_token_amount: u256,
             buy_token: ContractAddress,
+            minimum_price: u256,
             swap: AlternativeSwap,
         ) -> Option<u256> {
             assert(swap.percent > 0, 'Invalid route percent');
@@ -598,7 +614,7 @@ pub mod Exchange {
             // Try to match the minimum price set for the alternative swap to be effective. If the price constraint cannot
             // be fullfilled then return None
             let adjusted_amount_in = self
-                .optimize_alternative_swap_amount_in(contract_address, sell_token, sell_token_amount, buy_token, swap.clone())?;
+                .optimize_alternative_swap_amount_in(contract_address, sell_token, sell_token_amount, buy_token, minimum_price, swap.clone())?;
 
             self
                 .resolve_exchange_dispatcher(swap.exchange_address)
@@ -613,6 +629,7 @@ pub mod Exchange {
             sell_token: ContractAddress,
             sell_token_amount: u256,
             buy_token: ContractAddress,
+            minimum_price: u256,
             swap: AlternativeSwap,
         ) -> Option<u256> {
             let (mut sell_token_amount, overflows) = muldiv(sell_token_amount, swap.percent.into(), MAX_ROUTE_PERCENT.into(), false);
