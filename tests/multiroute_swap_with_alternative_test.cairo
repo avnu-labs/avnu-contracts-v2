@@ -121,7 +121,7 @@ mod SwapWithAlternative {
         // Start with an AMM where trading 5 unit gives a price of P = 1.8
         Serde::serialize(@MockPriceFunction::UniV2(MockUniV2PriceFunction { 
             reserve_a: 10,
-            reserve_b: 28
+            reserve_b: 30
         }), ref additional_swap_params);
 
         // Use alternative if we get a price of at least P = 2
@@ -136,6 +136,13 @@ mod SwapWithAlternative {
                 },
             );
 
+        let mut additional_swap_params = ArrayTrait::new();
+        // Start with an AMM where trading 5 unit gives a price of P = 1.8
+        Serde::serialize(@MockPriceFunction::UniV2(MockUniV2PriceFunction { 
+            reserve_a: 10,
+            reserve_b: 40
+        }), ref additional_swap_params);
+
         let mut routes = ArrayTrait::new();
         routes
             .append(
@@ -147,7 +154,7 @@ mod SwapWithAlternative {
                             principal: DirectSwap {
                                 exchange_address: contract_address_const::<0x12>(),
                                 percent: 100 * ROUTE_PERCENT_FACTOR,
-                                additional_swap_params: ArrayTrait::new(),
+                                additional_swap_params,
                             },
                             alternatives,
                         },
@@ -177,7 +184,7 @@ mod SwapWithAlternative {
 
         // Verify that beneficiary receives tokens to
         let balance = buy_token.balanceOf(beneficiary);
-        assert(balance == 14_u256, 'Invalid beneficiary balance');
+        assert(balance == 22_u256, 'Invalid beneficiary balance');
     }
 
     // #[test]

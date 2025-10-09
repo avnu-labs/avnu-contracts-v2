@@ -570,7 +570,7 @@ pub mod Exchange {
             let (principal_price, overflow) = muldiv(principal_amount_out, 18446744073709551616, sell_token_amount, true);
             assert(overflow == false, 'Overflow: Invalid price');
 
-            let (minimum_price, overflow) = muldiv(principal_price, 1005, 100, false);
+            let (minimum_price, overflow) = muldiv(principal_price, 1005, 1000, false);
             assert(overflow == false, 'Overflow: Invalid price');
 
             // Execute branch swap
