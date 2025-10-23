@@ -5,7 +5,7 @@ pub mod LayerAkiraAdapter {
     use starknet::syscalls::call_contract_syscall;
     use starknet::{ContractAddress, SyscallResultTrait, contract_address_const};
 
-    const LAYERAKIRA_ADDRESS: felt252 = 0x66a52d4f300ba4763d1d0893f71c8160e819280f0632a1842a918033335e665;
+    const LAYERAKIRA_ADDRESS: felt252 = 0x1d62299f814ac4f360c2a3aeab1a27348434c6ddb1b2248dd873e12555c22ec;
 
     #[storage]
     struct Storage {}
