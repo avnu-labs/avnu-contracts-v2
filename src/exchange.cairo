@@ -574,7 +574,7 @@ pub mod Exchange {
             assert(overflow == false, 'Overflow: Invalid percent');
 
             // Compute the minimal price of execution for the alternative.
-            // We aim for 0.5% more than the principal price for the alternative to be executed.
+            // We aim for 0.01% more than the principal price for the alternative to be executed.
             let principal_amount_out = self
                 .resolve_exchange_dispatcher(swap.principal.exchange_address)
                 .quote(
@@ -592,6 +592,9 @@ pub mod Exchange {
             // Execute branch swap
             let mut remaining_sell_token_amount = sell_token_amount;
             for alternative in swap.alternatives {
+                if remaining_sell_token_amount == 0 {
+                    break;
+                }
                 let alternative_amount_in = self
                     .apply_alternative_swap(contract_address, sell_token, remaining_sell_token_amount, buy_token, principal_price, alternative)
                     .unwrap_or_default();
@@ -599,18 +602,20 @@ pub mod Exchange {
                 remaining_sell_token_amount = remaining_sell_token_amount.saturating_sub(alternative_amount_in);
             }
 
-            // Call principal swap
-            self
-                .resolve_exchange_dispatcher(swap.principal.exchange_address)
-                .swap(
-                    swap.principal.exchange_address,
-                    sell_token,
-                    remaining_sell_token_amount,
-                    buy_token,
-                    0,
-                    contract_address,
-                    swap.principal.additional_swap_params,
-                );
+            if remaining_sell_token_amount > 0 {
+                // Call principal swap
+                self
+                    .resolve_exchange_dispatcher(swap.principal.exchange_address)
+                    .swap(
+                        swap.principal.exchange_address,
+                        sell_token,
+                        remaining_sell_token_amount,
+                        buy_token,
+                        0,
+                        contract_address,
+                        swap.principal.additional_swap_params,
+                    );
+            }
         }
 
         fn apply_alternative_swap(
@@ -630,11 +635,8 @@ pub mod Exchange {
 
             // Try to match the minimum price set for the alternative swap to be effective. If the price constraint cannot
             // be fullfilled then return None
-            let (alternative_amount_in, alternative_amount_out) = self
+            let (alternative_amount_in, alternative_amount_out, alternative_price) = self
                 .optimize_alternative_swap_amount_in(contract_address, sell_token, sell_token_amount, buy_token, minimum_price, swap.clone())?;
-
-            let (alternative_price, overflow) = muldiv(alternative_amount_out, 18446744073709551616, alternative_amount_in, true);
-            assert(overflow == false, 'Overflow: Invalid price');
 
             self
                 .resolve_exchange_dispatcher(swap.exchange_address)
@@ -663,7 +665,7 @@ pub mod Exchange {
             buy_token: ContractAddress,
             minimum_price: u256,
             swap: AlternativeSwap,
-        ) -> Option<(u256, u256)> {
+        ) -> Option<(u256, u256, u256)> {
             let (mut sell_token_amount, overflows) = muldiv(sell_token_amount, swap.percent.into(), MAX_ROUTE_PERCENT.into(), false);
             if overflows {
                 return Option::None;
@@ -679,7 +681,7 @@ pub mod Exchange {
                 // compute price, we use 64 bits precision so 2**64 == 18446744073709551616
                 let (price, overflow) = muldiv(buy_token_amount, 18446744073709551616, sell_token_amount, true);
                 if !overflow && price >= minimum_price {
-                    result = Option::Some((sell_token_amount, buy_token_amount));
+                    result = Option::Some((sell_token_amount, buy_token_amount, price));
                 }
 
                 // We reduce the amount in by 10% at each iteration, resulting in halving the amout in at iteration 5.
