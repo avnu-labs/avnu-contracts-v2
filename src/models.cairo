@@ -56,7 +56,6 @@ pub struct DirectSwap {
 pub struct AlternativeSwap {
     pub exchange_address: ContractAddress,
     pub percent: u128,
-    pub minimum_price: u256,
     pub additional_swap_params: Array<felt252>,
 }
 

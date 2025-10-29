@@ -12,6 +12,7 @@ pub trait IStrk<TContractState> {
 #[starknet::contract]
 pub mod VstrkAdapter {
     use avnu::adapters::ISwapAdapter;
+    #[feature("deprecated-starknet-consts")]
     use starknet::{ContractAddress, contract_address_const};
     use super::{IStrkDispatcher, IStrkDispatcherTrait, IVstrkDispatcher, IVstrkDispatcherTrait};
 

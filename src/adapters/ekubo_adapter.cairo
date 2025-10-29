@@ -73,6 +73,7 @@ pub mod EkuboAdapter {
     use avnu::adapters::ISwapAdapter;
     use avnu::math::sqrt_ratio::compute_sqrt_ratio_limit;
     use avnu_lib::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
+    #[feature("deprecated-starknet-consts")]
     use starknet::{ContractAddress, contract_address_const};
     use super::{
         IEkuboCoreDispatcher, IEkuboCoreDispatcherTrait, IEkuboRouterDispatcher, IEkuboRouterDispatcherTrait, PoolKey, RouteNode, TokenAmount, i129,
@@ -167,13 +168,10 @@ pub mod EkuboAdapter {
             assert(sell_token_amount.high == 0, 'Overflow: Unsupported amount');
             let token_amount = TokenAmount { token: sell_token_address, amount: i129 { mag: sell_token_amount.low, sign: false } };
 
-            // Transfer
-            IERC20Dispatcher { contract_address: sell_token_address }.transfer(router_address, sell_token_amount);
-
             // Swap
             let router = IEkuboRouterDispatcher { contract_address: router_address };
             let delta = router.quote_swap(route_node, token_amount);
-            
+
             if is_token1 {
                 return u256 { high: 0, low: delta.amount0.mag };
             } else {

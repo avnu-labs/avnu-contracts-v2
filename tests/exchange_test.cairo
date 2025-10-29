@@ -1,20 +1,22 @@
-use avnu::components::fee::{IFeeDispatcher, IFeeDispatcherTrait, TokenFeeConfig};
+use avnu::components::fee::{IFeeDispatcherTrait, TokenFeeConfig};
 use avnu::exchange::Exchange::Swap;
-use avnu::exchange::{Exchange, IExchangeDispatcher, IExchangeDispatcherTrait};
-use avnu::models::Route;
-use avnu_lib::components::ownable::{IOwnableDispatcher, IOwnableDispatcherTrait};
+use avnu::exchange::{IExchangeDispatcher, IExchangeDispatcherTrait};
+use avnu::external_solver_adapters::layer_akira_adapter::LayerAkiraAdapter;
+use avnu::models::{DirectSwap, Route, RouteSwap};
+use avnu_lib::components::ownable::IOwnableDispatcherTrait;
 use avnu_lib::interfaces::erc20::IERC20DispatcherTrait;
+#[feature("deprecated-starknet-consts")]
 use starknet::class_hash::class_hash_const;
 use starknet::testing::{pop_log_raw, set_contract_address};
+#[feature("deprecated-starknet-consts")]
 use starknet::{ContractAddress, contract_address_const};
 use super::helper::{deploy_exchange, deploy_mock_layer_akira, deploy_mock_token};
 use super::mocks::mock_erc20::MockERC20::Transfer;
-use super::mocks::old_exchange::IOldExchangeDispatcherTrait;
 
 const ROUTE_PERCENT_FACTOR: u128 = 10000000000;
 
 mod GetAdapterClassHash {
-    use super::{IExchangeDispatcherTrait, class_hash_const, contract_address_const, deploy_exchange};
+    use super::*;
 
     #[test]
     fn should_return_adapter_class_hash() {
@@ -32,7 +34,7 @@ mod GetAdapterClassHash {
 }
 
 mod SetAdapterClassHash {
-    use super::{IExchangeDispatcherTrait, IOwnableDispatcherTrait, class_hash_const, contract_address_const, deploy_exchange, set_contract_address};
+    use super::*;
 
     #[test]
     fn should_set_adapter_class() {
@@ -66,7 +68,7 @@ mod SetAdapterClassHash {
 }
 
 mod GetExternalSolverAdapterClassHash {
-    use super::{IExchangeDispatcherTrait, class_hash_const, contract_address_const, deploy_exchange};
+    use super::*;
 
     #[test]
     fn should_return_adapter_class_hash() {
@@ -84,7 +86,7 @@ mod GetExternalSolverAdapterClassHash {
 }
 
 mod SetExternalSolverAdapterClassHashAndParameters {
-    use super::{IExchangeDispatcherTrait, IOwnableDispatcherTrait, class_hash_const, contract_address_const, deploy_exchange, set_contract_address};
+    use super::*;
 
     #[test]
     fn should_set_adapter_class() {
@@ -119,11 +121,7 @@ mod SetExternalSolverAdapterClassHashAndParameters {
 }
 
 mod MultiRouteSwap {
-    use super::{
-        AlternativeSwap, BranchSwap, ContractAddress, DirectSwap, IERC20DispatcherTrait, IExchangeDispatcher, IExchangeDispatcherTrait,
-        IFeeDispatcherTrait, IOwnableDispatcherTrait, ROUTE_PERCENT_FACTOR, Route, RouteSwap, Swap, TokenFeeConfig, Transfer, contract_address_const,
-        deploy_exchange, deploy_mock_token, pop_log_raw, set_contract_address,
-    };
+    use super::*;
 
     struct SwapScenario {
         exchange: IExchangeDispatcher,
@@ -1588,11 +1586,7 @@ mod MultiRouteSwap {
 }
 
 mod SwapExactTokenTo {
-    use super::{
-        ContractAddress, DirectSwap, IERC20DispatcherTrait, IExchangeDispatcher, IExchangeDispatcherTrait, IFeeDispatcherTrait,
-        IOwnableDispatcherTrait, ROUTE_PERCENT_FACTOR, Route, RouteSwap, Swap, TokenFeeConfig, Transfer, contract_address_const, deploy_exchange,
-        deploy_mock_token, pop_log_raw, set_contract_address,
-    };
+    use super::*;
 
     struct SwapScenario {
         exchange: IExchangeDispatcher,
@@ -2414,365 +2408,8 @@ mod SwapExactTokenTo {
     }
 }
 
-// mod UpgradeClassAndMigration {
-//     use super::{
-//         Exchange, IERC20DispatcherTrait, IExchangeDispatcher, IExchangeDispatcherTrait, IFeeDispatcher, IFeeDispatcherTrait,
-//         IOwnableDispatcher, IOwnableDispatcherTrait, ROUTE_PERCENT_FACTOR, Route, RouteSwap, DirectSwap, Swap, Transfer, contract_address_const,
-//         deploy_mock_token, deploy_old_exchange, pop_log_raw, set_contract_address,
-//     };
-
-//     #[test]
-//     fn upgrade_class_check_storage_without_initialization() {
-//         //Given
-//         let (exchange, exchange_address) = deploy_old_exchange();
-//         exchange.set_fees_bps_0(10);
-//         exchange.set_fees_bps_1(20);
-//         exchange.set_swap_exact_token_to_fees_bps(30);
-
-//         // When
-//         exchange.upgrade_class(Exchange::TEST_CLASS_HASH.try_into().unwrap());
-//         let fee = IFeeDispatcher { contract_address: exchange_address };
-
-//         //Then
-//         assert(fee.get_fees_bps_0() == 10_u128, 'invalid fees bps');
-//         assert(fee.get_fees_bps_1() == 20_u128, 'invalid fees bps');
-//         assert(fee.get_swap_exact_token_to_fees_bps() == 30_u128, 'invalid fees bps');
-//         let fee_recipient = contract_address_const::<0x2>();
-//         assert(fee.get_fees_recipient() == fee_recipient, 'invalid fee recipient');
-//     }
-
-//     #[test]
-//     fn upgrade_class_check_storage_with_initialization() {
-//         // Given
-//         let (exchange, exchange_address) = deploy_old_exchange();
-//         exchange.set_fees_bps_0(10);
-//         exchange.set_fees_bps_1(20);
-//         exchange.set_swap_exact_token_to_fees_bps(30);
-//         let owner = contract_address_const::<0x1>();
-//         set_contract_address(owner);
-//         // When
-//         exchange.upgrade_class(Exchange::TEST_CLASS_HASH.try_into().unwrap());
-//         let new_exchange = IExchangeDispatcher { contract_address: exchange_address };
-//         let new_fee_recipient = contract_address_const::<0x20>();
-//         let ownable_owner_initial = contract_address_const::<0x0>();
-//         let new_owner = contract_address_const::<'NEW_OWNER'>();
-//         let ownable = IOwnableDispatcher { contract_address: exchange_address };
-//         assert(ownable.get_owner() == ownable_owner_initial, 'invalid initial owner');
-//         // initialize function is not gated behind assert_only_owner
-//         set_contract_address(contract_address_const::<'RANDOM'>());
-//         new_exchange.initialize(new_owner, new_fee_recipient, 50, 100, 100);
-
-//         // Then
-//         let fee = IFeeDispatcher { contract_address: exchange_address };
-//         assert(fee.get_fees_bps_0() == 50, 'invalid fees bps');
-//         assert(fee.get_fees_bps_1() == 100_u128, 'invalid fees bps');
-//         assert(fee.get_swap_exact_token_to_fees_bps() == 100_u128, 'invalid fees bps');
-//         assert(fee.get_fees_recipient() == new_fee_recipient, 'invalid fee recipient');
-
-//         assert(ownable.get_owner() == new_owner, 'invalid new owner');
-//     }
-
-//     #[test]
-//     fn should_not_panic_if_owner_only_function_called_after_initialize() {
-//         // Given
-//         let (exchange, exchange_address) = deploy_old_exchange();
-//         exchange.set_fees_bps_0(10);
-//         exchange.set_fees_bps_1(20);
-//         exchange.set_swap_exact_token_to_fees_bps(30);
-//         let owner = contract_address_const::<0x1>();
-//         set_contract_address(owner);
-
-//         // When
-//         exchange.upgrade_class(Exchange::TEST_CLASS_HASH.try_into().unwrap());
-//         let new_exchange = IExchangeDispatcher { contract_address: exchange_address };
-//         let new_fee_recipient = contract_address_const::<0x20>();
-//         let new_owner = contract_address_const::<'NEW_OWNER'>();
-//         new_exchange.initialize(new_owner, new_fee_recipient, 50, 100, 100);
-//         set_contract_address(new_owner);
-
-//         // Then
-//         new_exchange.set_adapter_class_hash(exchange_address, Exchange::TEST_CLASS_HASH.try_into().unwrap());
-//         assert(new_exchange.get_adapter_class_hash(exchange_address) == Exchange::TEST_CLASS_HASH.try_into().unwrap(), 'invalid class hash');
-//     }
-
-//     #[test]
-//     #[should_panic(expected: ('Fees are too high', 'ENTRYPOINT_FAILED'))]
-//     fn should_panic_if_initialize_called_with_too_high_fees_bps() {
-//         // Given
-//         let (exchange, exchange_address) = deploy_old_exchange();
-//         exchange.set_fees_bps_0(10);
-//         exchange.set_fees_bps_1(20);
-//         exchange.set_swap_exact_token_to_fees_bps(30);
-//         let owner = contract_address_const::<0x1>();
-//         set_contract_address(owner);
-
-//         // When & Then
-//         exchange.upgrade_class(Exchange::TEST_CLASS_HASH.try_into().unwrap());
-//         let new_exchange = IExchangeDispatcher { contract_address: exchange_address };
-//         let new_fee_recipient = contract_address_const::<0x20>();
-//         let new_owner = contract_address_const::<'NEW_OWNER'>();
-
-//         new_exchange.initialize(new_owner, new_fee_recipient, 100, 101, 100);
-//     }
-
-//     #[test]
-//     #[should_panic(expected: ('Owner already initialized', 'ENTRYPOINT_FAILED'))]
-//     fn should_panic_if_initialize_called_twice_by_owner() {
-//         // Given
-//         let (exchange, exchange_address) = deploy_old_exchange();
-//         exchange.set_fees_bps_0(10);
-//         exchange.set_fees_bps_1(20);
-//         exchange.set_swap_exact_token_to_fees_bps(30);
-//         let owner = contract_address_const::<0x1>();
-//         set_contract_address(owner);
-
-//         // When & Then
-//         exchange.upgrade_class(Exchange::TEST_CLASS_HASH.try_into().unwrap());
-//         let new_exchange = IExchangeDispatcher { contract_address: exchange_address };
-//         let new_fee_recipient = contract_address_const::<0x20>();
-//         let new_owner = contract_address_const::<'NEW_OWNER'>();
-
-//         new_exchange.initialize(new_owner, new_fee_recipient, 50, 100, 50);
-//         new_exchange.initialize(new_owner, new_fee_recipient, 50, 100, 50); // Not allowed
-//     }
-
-//     #[test]
-//     #[should_panic(expected: ('Owner already initialized', 'ENTRYPOINT_FAILED'))]
-//     fn should_panic_if_initialize_called_twice_by_anyone() {
-//         // Given
-//         let (exchange, exchange_address) = deploy_old_exchange();
-//         exchange.set_fees_bps_0(10);
-//         exchange.set_fees_bps_1(20);
-//         exchange.set_swap_exact_token_to_fees_bps(30);
-//         let owner = contract_address_const::<0x1>();
-//         set_contract_address(owner);
-
-//         // When & Then
-//         exchange.upgrade_class(Exchange::TEST_CLASS_HASH.try_into().unwrap());
-//         let new_exchange = IExchangeDispatcher { contract_address: exchange_address };
-//         let new_fee_recipient = contract_address_const::<0x20>();
-//         let new_owner = contract_address_const::<'NEW_OWNER'>();
-
-//         new_exchange.initialize(new_owner, new_fee_recipient, 50, 100, 50);
-//         set_contract_address(contract_address_const::<'RANDOM'>());
-//         new_exchange.initialize(new_owner, new_fee_recipient, 50, 100, 50); // Not allowed
-//     }
-
-//     #[test]
-//     #[should_panic(expected: ('Caller is not the owner', 'ENTRYPOINT_FAILED'))]
-//     fn should_panic_if_owner_only_function_called_before_initialize() {
-//         // Given
-//         let (exchange, exchange_address) = deploy_old_exchange();
-//         exchange.set_fees_bps_0(10);
-//         exchange.set_fees_bps_1(20);
-//         exchange.set_swap_exact_token_to_fees_bps(30);
-//         let owner = contract_address_const::<0x1>();
-//         set_contract_address(owner);
-
-//         // When & Then
-//         exchange.upgrade_class(Exchange::TEST_CLASS_HASH.try_into().unwrap());
-//         let new_exchange = IExchangeDispatcher { contract_address: exchange_address };
-
-//         // Using dummy values here
-//         new_exchange.set_adapter_class_hash(exchange_address, Exchange::TEST_CLASS_HASH.try_into().unwrap());
-//     }
-
-//     #[test]
-//     #[should_panic(expected: ('ENTRYPOINT_NOT_FOUND', 'ENTRYPOINT_FAILED'))]
-//     fn should_panic_if_old_function_called_after_upgrade() {
-//         // Given
-//         let (exchange, _) = deploy_old_exchange();
-//         exchange.set_fees_bps_0(10);
-//         exchange.set_fees_bps_1(20);
-//         exchange.set_swap_exact_token_to_fees_bps(30);
-//         let owner = contract_address_const::<0x1>();
-//         set_contract_address(owner);
-
-//         // When & Then
-//         exchange.upgrade_class(Exchange::TEST_CLASS_HASH.try_into().unwrap());
-//         exchange.get_fees_active();
-//     }
-
-//     #[test]
-//     #[available_gas(20000000)]
-//     fn should_call_swap_when_fees_after_upgrade_before_initialize() {
-//         // Given
-//         let (exchange, _) = deploy_old_exchange();
-//         let owner = contract_address_const::<0x1>();
-//         set_contract_address(owner);
-
-//         // When
-//         exchange.upgrade_class(Exchange::TEST_CLASS_HASH.try_into().unwrap());
-//         let beneficiary = contract_address_const::<0x12345>();
-
-//         let sell_token = deploy_mock_token(beneficiary, 1000, 1);
-//         let sell_token_address = sell_token.contract_address;
-//         let buy_token = deploy_mock_token(beneficiary, 0, 2);
-//         let buy_token_address = buy_token.contract_address;
-//         let sell_token_amount = u256 { low: 1000, high: 0 };
-//         let buy_token_min_amount = u256 { low: 950, high: 0 };
-//         let buy_token_amount = u256 { low: 950, high: 0 };
-//         let mut routes = ArrayTrait::new();
-//         routes
-//             .append(
-//                 Route {
-//                     sell_token: sell_token_address,
-//                     buy_token: buy_token_address,
-//  swap: RouteSwap::Direct(DirectSwap { exchange_address: contract_address_const::<0x12>(),
-//                     percent: 100 * ROUTE_PERCENT_FACTOR,
-//                     additional_swap_params: ArrayTrait::new(), }), },
-//             );
-//         set_contract_address(beneficiary);
-//         sell_token.approve(exchange.contract_address, sell_token_amount);
-
-//         let result = exchange
-//             .multi_route_swap(
-//                 sell_token_address,
-//                 sell_token_amount,
-//                 buy_token_address,
-//                 buy_token_amount,
-//                 buy_token_min_amount,
-//                 beneficiary,
-//                 0x64, // 1%, 100 bps
-//                 contract_address_const::<0x111>(),
-//                 routes,
-//             );
-
-//         // Then
-//         assert(result == true, 'invalid result');
-//         let (mut keys, mut data) = pop_log_raw(exchange.contract_address).unwrap();
-//         let event: Swap = starknet::Event::deserialize(ref keys, ref data).unwrap();
-//         let expected_event = Swap {
-//             taker_address: beneficiary,
-//             sell_address: sell_token_address,
-//             sell_amount: sell_token_amount,
-//             buy_address: buy_token_address,
-//             buy_amount: u256 { low: 990, high: 0 },
-//             beneficiary: beneficiary,
-//         };
-//         assert(event == expected_event, 'invalid swap event');
-//         assert(pop_log_raw(exchange.contract_address).is_none(), 'no more contract events');
-
-//         // Verify transfers
-//         // Verify integrator's fees
-//         let (mut keys, mut data) = pop_log_raw(buy_token_address).unwrap();
-//         let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
-//         let expected_event = Transfer { to: contract_address_const::<0x111>(), amount: 10_u256 };
-//         assert(event == expected_event, 'invalid token transfer');
-
-//         // Verify that beneficiary receives tokens to
-//         let balance = buy_token.balanceOf(beneficiary);
-//         assert(balance == 990_u256, 'Invalid beneficiary balance');
-//         let (mut keys, mut data) = pop_log_raw(buy_token_address).unwrap();
-//         let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
-//         let expected_event = Transfer { to: beneficiary, amount: 990_u256 };
-//         assert(event == expected_event, 'Invalid beneficiary balance');
-//         assert(pop_log_raw(buy_token_address).is_none(), 'no more buy_token events');
-//         assert(pop_log_raw(sell_token_address).is_none(), 'no more sell_token events');
-//     }
-
-//     #[test]
-//     #[available_gas(20000000)]
-//     fn should_call_swap_when_fees_after_upgrade_after_initialize() {
-//         // Given
-//         let (exchange, exchange_address) = deploy_old_exchange();
-//         let owner = contract_address_const::<0x1>();
-//         set_contract_address(owner);
-
-//         // When
-//         exchange.upgrade_class(Exchange::TEST_CLASS_HASH.try_into().unwrap());
-//         let new_exchange = IExchangeDispatcher { contract_address: exchange_address };
-//         let new_fee_recipient = contract_address_const::<0x20>();
-//         let new_owner = contract_address_const::<'NEW_OWNER'>();
-
-//         new_exchange.initialize(new_owner, new_fee_recipient, 0, 0, 50);
-//         let beneficiary = contract_address_const::<0x12345>();
-//         set_contract_address(new_owner);
-//         let fees_recipient = contract_address_const::<0x1111>();
-//         let fee = IFeeDispatcher { contract_address: exchange_address };
-//         fee.set_fees_recipient(fees_recipient);
-//         fee.set_fees_bps_0(20);
-//         let sell_token = deploy_mock_token(beneficiary, 1000, 1);
-//         let sell_token_address = sell_token.contract_address;
-//         let buy_token = deploy_mock_token(beneficiary, 0, 2);
-//         let buy_token_address = buy_token.contract_address;
-//         let sell_token_amount = u256 { low: 1000, high: 0 };
-//         let buy_token_min_amount = u256 { low: 950, high: 0 };
-//         let buy_token_amount = u256 { low: 950, high: 0 };
-//         let mut routes = ArrayTrait::new();
-//         routes
-//             .append(
-//                 Route {
-//                     sell_token: sell_token_address,
-//                     buy_token: buy_token_address,
-//  swap: RouteSwap::Direct(DirectSwap { exchange_address: contract_address_const::<0x12>(),
-//                     percent: 100 * ROUTE_PERCENT_FACTOR,
-//                     additional_swap_params: ArrayTrait::new(), }), },
-//             );
-//         set_contract_address(beneficiary);
-//         sell_token.approve(exchange.contract_address, sell_token_amount);
-
-//         let result = exchange
-//             .multi_route_swap(
-//                 sell_token_address,
-//                 sell_token_amount,
-//                 buy_token_address,
-//                 buy_token_amount,
-//                 buy_token_min_amount,
-//                 beneficiary,
-//                 0x64, // 1%, 100 bps
-//                 contract_address_const::<0x111>(),
-//                 routes,
-//             );
-
-//         // Then
-//         assert(result == true, 'invalid result');
-
-//         let (_, _) = pop_log_raw(exchange.contract_address).unwrap(); // initialize
-//         let (mut keys, mut data) = pop_log_raw(exchange.contract_address).unwrap();
-//         let event: Swap = starknet::Event::deserialize(ref keys, ref data).unwrap();
-//         let expected_event = Swap {
-//             taker_address: beneficiary,
-//             sell_address: sell_token_address,
-//             sell_amount: sell_token_amount,
-//             buy_address: buy_token_address,
-//             buy_amount: u256 { low: 988, high: 0 },
-//             beneficiary: beneficiary,
-//         };
-//         assert(event == expected_event, 'invalid swap event');
-//         assert(pop_log_raw(exchange.contract_address).is_none(), 'no more contract events');
-
-//         // Verify transfers
-//         // Verify integrator's fees
-//         let (mut keys, mut data) = pop_log_raw(buy_token_address).unwrap();
-//         let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
-//         let expected_event = Transfer { to: contract_address_const::<0x111>(), amount: 10_u256 };
-//         assert(event == expected_event, 'invalid token transfer');
-
-//         // Verify avnu's fees
-//         let (mut keys, mut data) = pop_log_raw(buy_token_address).unwrap();
-//         let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
-//         let expected_event = Transfer { to: fees_recipient, amount: 2_u256 };
-//         assert(event == expected_event, 'invalid token transfer');
-
-//         // Verify that beneficiary receives tokens to
-//         let balance = buy_token.balanceOf(beneficiary);
-//         assert(balance == 988_u256, 'Invalid beneficiary balance');
-//         let (mut keys, mut data) = pop_log_raw(buy_token_address).unwrap();
-//         let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
-//         let expected_event = Transfer { to: beneficiary, amount: 988_u256 };
-//         assert(event == expected_event, 'Invalid beneficiary balance');
-//         assert(pop_log_raw(buy_token_address).is_none(), 'no more buy_token events');
-//         assert(pop_log_raw(sell_token_address).is_none(), 'no more sell_token events');
-//     }
-// }
-
 mod ExternalSolverSwap {
-    use avnu::external_solver_adapters::layer_akira_adapter::LayerAkiraAdapter;
-    use super::{
-        IERC20DispatcherTrait, IExchangeDispatcherTrait, IOwnableDispatcherTrait, Swap, contract_address_const, deploy_exchange,
-        deploy_mock_layer_akira, deploy_mock_token, pop_log_raw, set_contract_address,
-    };
+    use super::*;
 
     #[test]
     #[available_gas(20000000)]

@@ -1,4 +1,5 @@
 use avnu::components::fee::{FeePolicy, IFeeDispatcherTrait, TokenFeeConfig};
+#[feature("deprecated-starknet-consts")]
 use starknet::contract_address_const;
 use starknet::testing::set_contract_address;
 use crate::components::mocks::fee_mock::IFeeMockDispatcherTrait;
