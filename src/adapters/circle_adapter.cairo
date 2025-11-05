@@ -1,6 +1,10 @@
+use starknet::ContractAddress;
+
 #[starknet::interface]
 pub trait ITokenMigration<TContractState> {
+    fn get_legacy_token(self: @TContractState) -> ContractAddress;
     fn swap_to_new(ref self: TContractState, amount: u256);
+    fn swap_to_legacy(ref self: TContractState, amount: u256);
 }
 
 #[starknet::contract]
@@ -26,9 +30,14 @@ pub mod CircleAdapter {
             additional_swap_params: Array<felt252>,
         ) {
             assert(additional_swap_params.len() == 0, 'Invalid swap params');
+            let token_migration = ITokenMigrationDispatcher { contract_address: exchange_address };
+            let legacy_token_address = token_migration.get_legacy_token();
 
             IERC20Dispatcher { contract_address: sell_token_address }.approve(exchange_address, sell_token_amount);
-            ITokenMigrationDispatcher { contract_address: exchange_address }.swap_to_new(sell_token_amount);
+            match sell_token_address == legacy_token_address {
+                true => token_migration.swap_to_new(sell_token_amount),
+                false => token_migration.swap_to_legacy(sell_token_amount),
+            }
         }
 
         fn quote(
