@@ -1,3 +1,4 @@
+pub mod circle_adapter;
 pub mod ekubo_adapter;
 pub mod endur_adapter;
 pub mod haiko_adapter;
