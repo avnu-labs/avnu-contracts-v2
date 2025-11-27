@@ -122,7 +122,7 @@ pub mod EkuboAdapter {
                 tick_spacing: (*additional_swap_params[3]).try_into().unwrap(),
                 extension: (*additional_swap_params[4]).try_into().unwrap(),
             };
-            let sqrt_ratio_distance: u256 = (*additional_swap_params[5]).into();
+            let sqrt_ratio_distance: u256 = (*additional_swap_params[5]).into() * 2;
             let is_token1 = pool_key.token1 == sell_token_address;
             let pool_price = IEkuboCoreDispatcher { contract_address: exchange_address }.get_pool_price(pool_key);
             let sqrt_ratio_limit = compute_sqrt_ratio_limit(pool_price.sqrt_ratio, sqrt_ratio_distance, is_token1, MIN_SQRT_RATIO, MAX_SQRT_RATIO);
