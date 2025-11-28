@@ -207,49 +207,6 @@ mod MultiRouteSwap {
 
     #[test]
     #[available_gas(20000000)]
-    #[should_panic(expected: ('Residual tokens', 'ENTRYPOINT_FAILED'))]
-    fn should_throw_error_when_residual_tokens() {
-        // Given
-        let (exchange, _, _) = deploy_exchange();
-        let beneficiary = contract_address_const::<0x12345>();
-        let sell_token = deploy_mock_token(beneficiary, 10, 1);
-        let sell_token_address = sell_token.contract_address;
-        let buy_token = deploy_mock_token(beneficiary, 0, 2);
-        let buy_token_address = buy_token.contract_address;
-        let sell_token_amount = u256 { low: 10, high: 0 };
-        let buy_token_min_amount = u256 { low: 1, high: 0 };
-        let buy_token_amount = u256 { low: 1, high: 0 };
-        let mut routes = ArrayTrait::new();
-        routes
-            .append(
-                Route {
-                    sell_token: sell_token_address,
-                    buy_token: buy_token_address,
-                    exchange_address: contract_address_const::<0x12>(),
-                    percent: 40 * ROUTE_PERCENT_FACTOR,
-                    additional_swap_params: ArrayTrait::new(),
-                },
-            );
-        set_contract_address(beneficiary);
-        sell_token.approve(exchange.contract_address, sell_token_amount);
-
-        // When
-        exchange
-            .multi_route_swap(
-                sell_token_address,
-                sell_token_amount,
-                buy_token_address,
-                buy_token_amount,
-                buy_token_min_amount,
-                beneficiary,
-                0,
-                contract_address_const::<0x0>(),
-                routes,
-            );
-    }
-
-    #[test]
-    #[available_gas(20000000)]
     #[should_panic(expected: ('Token from amount is 0', 'ENTRYPOINT_FAILED'))]
     fn should_throw_error_when_sell_token_amount_is_0() {
         // Given
@@ -1834,54 +1791,6 @@ mod SwapExactTokenTo {
         assert(balance == 1000_u256, 'Invalid integrator buy balance');
         let balance = sell_token.balanceOf(integrator_fee_recipient);
         assert(balance == 0_u256, 'Invalid integrator sell balance');
-    }
-
-    #[test]
-    #[available_gas(20000000)]
-    #[should_panic(expected: ('Residual tokens', 'ENTRYPOINT_FAILED'))]
-    fn should_throw_error_when_residual_tokens() {
-        // Given
-        let (exchange, ownable, fee) = deploy_exchange();
-        let beneficiary = contract_address_const::<0x12345>();
-        let sell_token = deploy_mock_token(beneficiary, 10, 1);
-        let sell_token_address = sell_token.contract_address;
-        let buy_token = deploy_mock_token(beneficiary, 0, 2);
-        let buy_token_address = buy_token.contract_address;
-        let sell_token_max_amount = u256 { low: 10, high: 0 };
-        let sell_token_amount = u256 { low: 9, high: 0 };
-        set_contract_address(ownable.get_owner());
-        let fees_recipient = contract_address_const::<0x1111>();
-        fee.set_fees_recipient(fees_recipient);
-        let buy_token_amount = u256 { low: 1, high: 0 };
-        let mut routes = ArrayTrait::new();
-        routes
-            .append(
-                Route {
-                    sell_token: sell_token_address,
-                    buy_token: buy_token_address,
-                    exchange_address: contract_address_const::<0x12>(),
-                    percent: 40 * ROUTE_PERCENT_FACTOR,
-                    additional_swap_params: ArrayTrait::new(),
-                },
-            );
-        set_contract_address(beneficiary);
-        sell_token.approve(exchange.contract_address, sell_token_max_amount);
-        let integrator_fee_recipient = contract_address_const::<0x0>();
-        let integrator_fee = 0_u128;
-
-        // When
-        exchange
-            .swap_exact_token_to(
-                sell_token_address,
-                sell_token_amount,
-                sell_token_max_amount,
-                buy_token_address,
-                buy_token_amount,
-                beneficiary,
-                integrator_fee,
-                integrator_fee_recipient,
-                routes,
-            );
     }
 
     #[test]

@@ -63,7 +63,6 @@ pub mod Exchange {
     use avnu_lib::components::upgradable::UpgradableComponent;
     use avnu_lib::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
     use avnu_lib::math::muldiv::muldiv;
-    use core::dict::Felt252Dict;
     use core::num::traits::Zero;
     use starknet::storage::{Map, StorageMapReadAccess, StorageMapWriteAccess};
     use starknet::{ClassHash, ContractAddress, get_caller_address, get_contract_address};
@@ -247,12 +246,6 @@ pub mod Exchange {
             assert(buy_token_min_amount <= buy_token_final_amount, 'Insufficient tokens received');
             buy_token.transfer(beneficiary, buy_token_final_amount);
 
-            // Dict of bools are supported yet
-            let mut checked_tokens: Felt252Dict<u64> = Default::default();
-            // Token to has already been checked
-            checked_tokens.insert(buy_token_address.into(), 1);
-            self.assert_no_remaining_tokens(contract_address, routes_span, checked_tokens);
-
             // Emit event
             self
                 .emit(
@@ -355,11 +348,6 @@ pub mod Exchange {
                     },
                 );
 
-            // Dict of bools are supported yet
-            let mut checked_tokens: Felt252Dict<u64> = Default::default();
-            // Token to has already been checked
-            checked_tokens.insert(buy_token_address.into(), 1);
-            self.assert_no_remaining_tokens(contract_address, routes_span, checked_tokens);
             true
         }
 
@@ -487,36 +475,6 @@ pub mod Exchange {
             };
 
             (sell_token_amount_used, buy_token_amount_received)
-        }
-
-        fn assert_no_remaining_tokens(
-            ref self: ContractState, contract_address: ContractAddress, mut routes: Span<Route>, mut checked_tokens: Felt252Dict<u64>,
-        ) {
-            if routes.len() == 0 {
-                return;
-            }
-
-            // Retrieve current route
-            let route: @Route = routes.pop_front().unwrap();
-
-            // Transfer residual tokens
-            self.assert_no_remaining_token(contract_address, *route.sell_token, ref checked_tokens);
-            self.assert_no_remaining_token(contract_address, *route.buy_token, ref checked_tokens);
-
-            self.assert_no_remaining_tokens(contract_address, routes, checked_tokens);
-        }
-
-        fn assert_no_remaining_token(
-            ref self: ContractState, contract_address: ContractAddress, token_address: ContractAddress, ref checked_tokens: Felt252Dict<u64>,
-        ) {
-            // Only do the check when token balance has not already been checked
-            if checked_tokens.get(token_address.into()) == 0 {
-                // Check balance and transfer tokens if necessary
-                let token = IERC20Dispatcher { contract_address: token_address };
-                let token_balance = token.balanceOf(contract_address);
-                assert(token_balance == 0, 'Residual tokens');
-                checked_tokens.insert(token_address.into(), 1);
-            }
         }
 
         fn apply_routes(ref self: ContractState, mut routes: Array<Route>, contract_address: ContractAddress) {
