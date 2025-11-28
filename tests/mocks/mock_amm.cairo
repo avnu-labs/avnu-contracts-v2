@@ -1,42 +1,16 @@
+use avnu::adapters::ISwapAdapter;
+use avnu::adapters::jediswap_adapter::IJediSwapRouter;
+use avnu::adapters::myswap_adapter::IMySwapRouter;
+use avnu::adapters::sithswap_adapter::{ISithSwapRouter, Route};
+use avnu::adapters::tenkswap_adapter::ITenkSwapRouter;
+use avnu_lib::math::muldiv::muldiv;
+#[feature("deprecated-starknet-consts")]
+use starknet::{ContractAddress, contract_address_const, get_contract_address};
 use super::mock_erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
 
 #[starknet::contract]
-pub mod MockEkubo {
-    use avnu::adapters::ekubo_adapter::{Delta, IEkuboRouter, PoolKey, PoolPrice, SwapParameters, i129};
-
-    use starknet::ContractAddress;
-    use starknet::contract_address_const;
-
-    #[storage]
-    struct Storage {}
-
-    #[abi(embed_v0)]
-    impl RouterImpl of IEkuboRouter<ContractState> {
-        fn swap(ref self: ContractState, pool_key: PoolKey, params: SwapParameters) -> Delta {
-            assert(pool_key.token0 == contract_address_const::<0x1>(), 'Invalid token0');
-            assert(pool_key.token1 == contract_address_const::<0x2>(), 'Invalid token1');
-            assert(pool_key.fee == 0x3, 'Invalid fee');
-            assert(pool_key.tick_spacing == 0x4, 'Invalid tick_spacing');
-            assert(pool_key.extension == contract_address_const::<0x5>(), 'Invalid extension');
-            Delta { amount0: i129 { mag: 0, sign: false }, amount1: i129 { mag: 0, sign: false } }
-        }
-        fn lock(ref self: ContractState, data: Array<felt252>) -> Array<felt252> {
-            ArrayTrait::new()
-        }
-        fn get_pool_price(self: @ContractState, pool_key: PoolKey) -> PoolPrice {
-            PoolPrice { sqrt_ratio: 0, tick: i129 { mag: 0, sign: false } }
-        }
-        fn withdraw(ref self: ContractState, token_address: ContractAddress, recipient: ContractAddress, amount: u128) {}
-        fn pay(ref self: ContractState, token_address: ContractAddress) {}
-    }
-}
-
-#[starknet::contract]
 pub mod MockJediSwap {
-    use avnu::adapters::jediswap_adapter::IJediSwapRouter;
-
-    use starknet::ContractAddress;
-    use starknet::contract_address_const;
+    use super::*;
 
     #[storage]
     struct Storage {}
@@ -54,13 +28,20 @@ pub mod MockJediSwap {
             amounts.append(u256 { low: 1, high: 0 });
             amounts
         }
+
+        fn get_amounts_out(self: @ContractState, amountIn: u256, path: Array<ContractAddress>) -> Array<u256> {
+            assert(amountIn == u256 { low: 1, high: 0 }, 'invalid amountIn');
+            assert(path.len() == 2, 'invalid path');
+            let mut amounts = ArrayTrait::new();
+            amounts.append(u256 { low: 1, high: 0 });
+            amounts
+        }
     }
 }
 
 #[starknet::contract]
 pub mod MockMySwap {
-    use avnu::adapters::myswap_adapter::IMySwapRouter;
-    use starknet::ContractAddress;
+    use super::*;
 
     #[storage]
     struct Storage {}
@@ -78,10 +59,7 @@ pub mod MockMySwap {
 
 #[starknet::contract]
 pub mod MockSithSwap {
-    use avnu::adapters::sithswap_adapter::{ISithSwapRouter, Route};
-
-    use starknet::ContractAddress;
-    use starknet::contract_address_const;
+    use super::*;
 
     #[storage]
     struct Storage {}
@@ -105,9 +83,7 @@ pub mod MockSithSwap {
 
 #[starknet::contract]
 pub mod MockTenkSwap {
-    use avnu::adapters::tenkswap_adapter::ITenkSwapRouter;
-    use starknet::ContractAddress;
-    use starknet::contract_address_const;
+    use super::*;
 
     #[storage]
     struct Storage {}
@@ -128,11 +104,53 @@ pub mod MockTenkSwap {
     }
 }
 
+pub trait IMockPriceFunction<T> {
+    fn price(self: @T, amount_in: u256) -> u256;
+}
+
+#[derive(Debug, Serde, Clone, Drop)]
+pub enum MockPriceFunction {
+    Constant: MockConstantPriceFunction,
+    UniV2: MockUniV2PriceFunction,
+}
+
+impl IMockPriceFunctionImpl of IMockPriceFunction<MockPriceFunction> {
+    fn price(self: @MockPriceFunction, amount_in: u256) -> u256 {
+        match self {
+            MockPriceFunction::Constant(x) => x.price(amount_in),
+            MockPriceFunction::UniV2(x) => x.price(amount_in),
+        }
+    }
+}
+
+#[derive(Debug, Serde, Clone, Drop)]
+pub struct MockConstantPriceFunction {
+    pub price: u256,
+}
+
+impl IMockConstantPriceFunctionImpl of IMockPriceFunction<MockConstantPriceFunction> {
+    fn price(self: @MockConstantPriceFunction, amount_in: u256) -> u256 {
+        *self.price
+    }
+}
+
+#[derive(Debug, Serde, Clone, Drop)]
+pub struct MockUniV2PriceFunction {
+    pub reserve_a: u256,
+    pub reserve_b: u256,
+}
+
+impl IMockUniV2PriceFunctionImpl of IMockPriceFunction<MockUniV2PriceFunction> {
+    fn price(self: @MockUniV2PriceFunction, amount_in: u256) -> u256 {
+        let (result, _) = muldiv(*self.reserve_b, 18446744073709551616, *self.reserve_a + amount_in, false);
+
+        result
+    }
+}
+
 #[starknet::contract]
 pub mod MockSwapAdapter {
-    use avnu::adapters::ISwapAdapter;
-    use starknet::{ContractAddress, get_contract_address};
-    use super::{IERC20Dispatcher, IERC20DispatcherTrait};
+    use super::*;
 
     #[storage]
     struct Storage {}
@@ -150,8 +168,29 @@ pub mod MockSwapAdapter {
             additional_swap_params: Array<felt252>,
         ) {
             let caller = get_contract_address();
+            let buy_token_amount = self.quote(exchange_address, sell_token_address, sell_token_amount, buy_token_address, to, additional_swap_params);
+
             IERC20Dispatcher { contract_address: sell_token_address }.burn(caller, sell_token_amount);
-            IERC20Dispatcher { contract_address: buy_token_address }.mint(caller, sell_token_amount);
+            IERC20Dispatcher { contract_address: buy_token_address }.mint(caller, buy_token_amount);
+        }
+
+        fn quote(
+            self: @ContractState,
+            exchange_address: ContractAddress,
+            sell_token_address: ContractAddress,
+            sell_token_amount: u256,
+            buy_token_address: ContractAddress,
+            to: ContractAddress,
+            additional_swap_params: Array<felt252>,
+        ) -> u256 {
+            let mut params = additional_swap_params.clone().span();
+            let price_function: MockPriceFunction = Serde::deserialize(ref params)
+                .unwrap_or(MockPriceFunction::Constant(MockConstantPriceFunction { price: 18446744073709551616 }));
+
+            let price = price_function.price(sell_token_amount);
+            let (buy_token_amount, _) = muldiv(sell_token_amount, price, 18446744073709551616, false);
+
+            buy_token_amount
         }
     }
 }

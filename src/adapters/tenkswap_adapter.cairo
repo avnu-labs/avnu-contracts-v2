@@ -42,5 +42,17 @@ pub mod TenkswapAdapter {
             ITenkSwapRouterDispatcher { contract_address: exchange_address }
                 .swapExactTokensForTokens(sell_token_amount, buy_token_min_amount, path, to, deadline);
         }
+
+        fn quote(
+            self: @ContractState,
+            exchange_address: ContractAddress,
+            sell_token_address: ContractAddress,
+            sell_token_amount: u256,
+            buy_token_address: ContractAddress,
+            to: ContractAddress,
+            additional_swap_params: Array<felt252>,
+        ) -> u256 {
+            0
+        }
     }
 }

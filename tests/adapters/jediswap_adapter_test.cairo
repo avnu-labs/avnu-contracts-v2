@@ -3,6 +3,7 @@ use crate::helper::{deploy_jediswap_adapter, deploy_mock_jediswap, deploy_mock_t
 
 mod Swap {
     use avnu::adapters::ISwapAdapterDispatcherTrait;
+    #[feature("deprecated-starknet-consts")]
     use starknet::{contract_address_const, get_caller_address};
     use super::{deploy_jediswap_adapter, deploy_mock_jediswap, deploy_mock_token};
 

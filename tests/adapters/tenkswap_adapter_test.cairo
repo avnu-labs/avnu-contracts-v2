@@ -1,7 +1,8 @@
 mod Swap {
     use avnu::adapters::ISwapAdapterDispatcherTrait;
-    use crate::helper::{deploy_mock_tenkswap, deploy_mock_token, deploy_tenkswap_adapter};
+    #[feature("deprecated-starknet-consts")]
     use starknet::{contract_address_const, get_caller_address};
+    use crate::helper::{deploy_mock_tenkswap, deploy_mock_token, deploy_tenkswap_adapter};
 
     #[test]
     fn should_call_tenkswap() {

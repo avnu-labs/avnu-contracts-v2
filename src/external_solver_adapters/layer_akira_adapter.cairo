@@ -3,9 +3,10 @@ pub mod LayerAkiraAdapter {
     use avnu::external_solver_adapters::{IExternalSolverAdapter, SwapResponse};
     use avnu_lib::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
     use starknet::syscalls::call_contract_syscall;
+    #[feature("deprecated-starknet-consts")]
     use starknet::{ContractAddress, SyscallResultTrait, contract_address_const};
 
-    const LAYERAKIRA_ADDRESS: felt252 = 0x7e684cf1d9b3e511cbc36bd75805726e11430607859f205930dbfa910a04e16;
+    const LAYERAKIRA_ADDRESS: felt252 = 0x1d62299f814ac4f360c2a3aeab1a27348434c6ddb1b2248dd873e12555c22ec;
 
     #[storage]
     struct Storage {}

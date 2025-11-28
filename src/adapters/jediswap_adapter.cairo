@@ -5,6 +5,8 @@ pub trait IJediSwapRouter<TContractState> {
     fn swap_exact_tokens_for_tokens(
         self: @TContractState, amountIn: u256, amountOutMin: u256, path: Array<ContractAddress>, to: ContractAddress, deadline: u64,
     ) -> Array<u256>;
+
+    fn get_amounts_out(self: @TContractState, amountIn: u256, path: Array<ContractAddress>) -> Array<u256>;
 }
 
 #[starknet::contract]
@@ -41,6 +43,29 @@ pub mod JediswapAdapter {
             IERC20Dispatcher { contract_address: sell_token_address }.approve(exchange_address, sell_token_amount);
             IJediSwapRouterDispatcher { contract_address: exchange_address }
                 .swap_exact_tokens_for_tokens(sell_token_amount, buy_token_min_amount, path, to, deadline);
+        }
+
+        fn quote(
+            self: @ContractState,
+            exchange_address: ContractAddress,
+            sell_token_address: ContractAddress,
+            sell_token_amount: u256,
+            buy_token_address: ContractAddress,
+            to: ContractAddress,
+            additional_swap_params: Array<felt252>,
+        ) -> u256 {
+            assert(additional_swap_params.len() == 0, 'Invalid swap params');
+
+            // Init path
+            let path = array![sell_token_address, buy_token_address];
+
+            let amount_out: u256 = IJediSwapRouterDispatcher { contract_address: exchange_address }
+                .get_amounts_out(sell_token_amount, path)
+                .get(0)
+                .map(|x| x.unbox().clone())
+                .unwrap_or_default();
+
+            amount_out
         }
     }
 }

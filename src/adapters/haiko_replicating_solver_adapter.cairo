@@ -76,5 +76,17 @@ pub mod HaikoReplicatingSolverAdapter {
 
             haiko.swap(market_id, swap_params);
         }
+
+        fn quote(
+            self: @ContractState,
+            exchange_address: ContractAddress,
+            sell_token_address: ContractAddress,
+            sell_token_amount: u256,
+            buy_token_address: ContractAddress,
+            to: ContractAddress,
+            additional_swap_params: Array<felt252>,
+        ) -> u256 {
+            0
+        }
     }
 }

@@ -1,22 +1,24 @@
 use starknet::ContractAddress;
 
 #[starknet::interface]
-pub trait IMySwapRouter<TContractState> {
-    fn swap(self: @TContractState, pool_id: felt252, token_from_addr: ContractAddress, amount_from: u256, amount_to_min: u256) -> u256;
+pub trait ITokenMigration<TContractState> {
+    fn get_legacy_token(self: @TContractState) -> ContractAddress;
+    fn swap_to_new(ref self: TContractState, amount: u256);
+    fn swap_to_legacy(ref self: TContractState, amount: u256);
 }
 
 #[starknet::contract]
-pub mod MyswapAdapter {
+pub mod CircleAdapter {
     use avnu::adapters::ISwapAdapter;
     use avnu_lib::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
     use starknet::ContractAddress;
-    use super::{IMySwapRouterDispatcher, IMySwapRouterDispatcherTrait};
+    use super::{ITokenMigrationDispatcher, ITokenMigrationDispatcherTrait};
 
     #[storage]
     struct Storage {}
 
     #[abi(embed_v0)]
-    impl MyswapAdapter of ISwapAdapter<ContractState> {
+    impl CircleAdapter of ISwapAdapter<ContractState> {
         fn swap(
             self: @ContractState,
             exchange_address: ContractAddress,
@@ -27,10 +29,15 @@ pub mod MyswapAdapter {
             to: ContractAddress,
             additional_swap_params: Array<felt252>,
         ) {
-            assert(additional_swap_params.len() == 1, 'Invalid swap params');
-            let pool_id = *additional_swap_params[0];
+            assert(additional_swap_params.len() == 0, 'Invalid swap params');
+            let token_migration = ITokenMigrationDispatcher { contract_address: exchange_address };
+            let legacy_token_address = token_migration.get_legacy_token();
+
             IERC20Dispatcher { contract_address: sell_token_address }.approve(exchange_address, sell_token_amount);
-            IMySwapRouterDispatcher { contract_address: exchange_address }.swap(pool_id, sell_token_address, sell_token_amount, buy_token_min_amount);
+            match sell_token_address == legacy_token_address {
+                true => token_migration.swap_to_new(sell_token_amount),
+                false => token_migration.swap_to_legacy(sell_token_amount),
+            }
         }
 
         fn quote(

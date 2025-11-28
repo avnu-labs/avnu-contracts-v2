@@ -12,6 +12,7 @@ pub trait IStrk<TContractState> {
 #[starknet::contract]
 pub mod VstrkAdapter {
     use avnu::adapters::ISwapAdapter;
+    #[feature("deprecated-starknet-consts")]
     use starknet::{ContractAddress, contract_address_const};
     use super::{IStrkDispatcher, IStrkDispatcherTrait, IVstrkDispatcher, IVstrkDispatcherTrait};
 
@@ -38,6 +39,18 @@ pub mod VstrkAdapter {
             } else {
                 IVstrkDispatcher { contract_address: sell_token_address }.unlock(sell_token_amount);
             }
+        }
+
+        fn quote(
+            self: @ContractState,
+            exchange_address: ContractAddress,
+            sell_token_address: ContractAddress,
+            sell_token_amount: u256,
+            buy_token_address: ContractAddress,
+            to: ContractAddress,
+            additional_swap_params: Array<felt252>,
+        ) -> u256 {
+            0
         }
     }
 }

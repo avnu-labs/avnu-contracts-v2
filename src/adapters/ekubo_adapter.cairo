@@ -31,14 +31,6 @@ pub struct PoolKey {
 }
 
 #[derive(Copy, Drop, Serde)]
-pub struct SwapParameters {
-    pub amount: i129,
-    pub is_token1: bool,
-    pub sqrt_ratio_limit: u256,
-    pub skip_ahead: u32,
-}
-
-#[derive(Copy, Drop, Serde)]
 pub struct Delta {
     pub amount0: i129,
     pub amount1: i129,
@@ -52,36 +44,45 @@ pub struct PoolPrice {
     pub tick: i129,
 }
 
-// The points at which an extension should be called
+#[derive(Copy, Drop, Serde)]
+pub struct RouteNode {
+    pool_key: PoolKey,
+    sqrt_ratio_limit: u256,
+    skip_ahead: u128,
+}
 #[derive(Copy, Drop, Serde, PartialEq)]
-pub struct CallPoints {
-    after_initialize_pool: bool,
-    before_swap: bool,
-    after_swap: bool,
-    before_update_position: bool,
-    after_update_position: bool,
+pub struct TokenAmount {
+    token: ContractAddress,
+    amount: i129,
 }
 
 #[starknet::interface]
 pub trait IEkuboRouter<TContractState> {
-    fn lock(ref self: TContractState, data: Array<felt252>) -> Array<felt252>;
-    fn swap(ref self: TContractState, pool_key: PoolKey, params: SwapParameters) -> Delta;
-    fn withdraw(ref self: TContractState, token_address: ContractAddress, recipient: ContractAddress, amount: u128);
+    fn swap(ref self: TContractState, node: RouteNode, token_amount: TokenAmount) -> Delta;
+    fn quote_swap(ref self: TContractState, node: RouteNode, token_amount: TokenAmount) -> Delta;
+    fn clear(ref self: TContractState, token: ContractAddress) -> u256;
+}
+
+#[starknet::interface]
+pub trait IEkuboCore<TContractState> {
     fn get_pool_price(self: @TContractState, pool_key: PoolKey) -> PoolPrice;
-    fn pay(ref self: TContractState, token_address: ContractAddress);
 }
 
 #[starknet::contract]
 pub mod EkuboAdapter {
     use avnu::adapters::ISwapAdapter;
-    use avnu::interfaces::locker::ISwapAfterLock;
     use avnu::math::sqrt_ratio::compute_sqrt_ratio_limit;
     use avnu_lib::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
-    use starknet::ContractAddress;
-    use super::{IEkuboRouterDispatcher, IEkuboRouterDispatcherTrait, PoolKey, SwapParameters, i129};
+    #[feature("deprecated-starknet-consts")]
+    use starknet::{ContractAddress, contract_address_const};
+    use super::{
+        IEkuboCoreDispatcher, IEkuboCoreDispatcherTrait, IEkuboRouterDispatcher, IEkuboRouterDispatcherTrait, PoolKey, RouteNode, TokenAmount, i129,
+    };
 
     const MIN_SQRT_RATIO: u256 = 18446748437148339061;
     const MAX_SQRT_RATIO: u256 = 6277100250585753475930931601400621808602321654880405518632;
+    //const ROUTER_ADDRESS: felt252 = 0x0045f933adf0607292468ad1c1dedaa74d5ad166392590e72676a34d01d7b763; // Sepolia
+    const ROUTER_ADDRESS: felt252 = 0x0199741822c2dc722f6f605204f35e56dbc23bceed54818168c4c49e4fb8737e; // Mainnet
 
     #[storage]
     struct Storage {}
@@ -112,73 +113,71 @@ pub mod EkuboAdapter {
             // Verify additional_swap_params
             assert(additional_swap_params.len() == 6, 'Invalid swap params');
 
-            // Build callback data
-            let callback = SwapAfterLockParameters {
-                contract_address: exchange_address,
-                to,
-                sell_token_address,
-                sell_token_amount,
-                buy_token_address,
-                pool_key: PoolKey {
-                    token0: (*additional_swap_params[0]).try_into().unwrap(),
-                    token1: (*additional_swap_params[1]).try_into().unwrap(),
-                    fee: (*additional_swap_params[2]).try_into().unwrap(),
-                    tick_spacing: (*additional_swap_params[3]).try_into().unwrap(),
-                    extension: (*additional_swap_params[4]).try_into().unwrap(),
-                },
-                sqrt_ratio_distance: (*additional_swap_params[5]).into(),
+            // Prepare swap params
+            let router_address = contract_address_const::<ROUTER_ADDRESS>();
+            let pool_key = PoolKey {
+                token0: (*additional_swap_params[0]).try_into().unwrap(),
+                token1: (*additional_swap_params[1]).try_into().unwrap(),
+                fee: (*additional_swap_params[2]).try_into().unwrap(),
+                tick_spacing: (*additional_swap_params[3]).try_into().unwrap(),
+                extension: (*additional_swap_params[4]).try_into().unwrap(),
             };
-            let mut data: Array<felt252> = ArrayTrait::new();
-            Serde::<SwapAfterLockParameters>::serialize(@callback, ref data);
+            let sqrt_ratio_distance: u256 = (*additional_swap_params[5]).into() * 2;
+            let is_token1 = pool_key.token1 == sell_token_address;
+            let pool_price = IEkuboCoreDispatcher { contract_address: exchange_address }.get_pool_price(pool_key);
+            let sqrt_ratio_limit = compute_sqrt_ratio_limit(pool_price.sqrt_ratio, sqrt_ratio_distance, is_token1, MIN_SQRT_RATIO, MAX_SQRT_RATIO);
+            let route_node = RouteNode { pool_key, sqrt_ratio_limit, skip_ahead: 100 };
+            assert(sell_token_amount.high == 0, 'Overflow: Unsupported amount');
+            let token_amount = TokenAmount { token: sell_token_address, amount: i129 { mag: sell_token_amount.low, sign: false } };
 
-            // Lock
-            let ekubo = IEkuboRouterDispatcher { contract_address: exchange_address };
-            ekubo.lock(data);
-        }
-    }
-
-    #[abi(embed_v0)]
-    impl SwapAfterLock of ISwapAfterLock<ContractState> {
-        fn swap_after_lock(ref self: ContractState, data: Array<felt252>) {
-            // Deserialize data
-            let mut input_span = data.span();
-            let mut params = Serde::<SwapAfterLockParameters>::deserialize(ref input_span).expect('Invalid callback data');
-
-            // Init dispatcher
-            let ekubo = IEkuboRouterDispatcher { contract_address: params.contract_address };
-            let is_token1 = params.pool_key.token1 == params.sell_token_address;
+            // Transfer
+            IERC20Dispatcher { contract_address: sell_token_address }.transfer(router_address, sell_token_amount);
 
             // Swap
-            assert(params.sell_token_amount.high == 0, 'Overflow: Unsupported amount');
-            let pool_price = ekubo.get_pool_price(params.pool_key);
-            let sqrt_ratio_limit = compute_sqrt_ratio_limit(
-                pool_price.sqrt_ratio, params.sqrt_ratio_distance, is_token1, MIN_SQRT_RATIO, MAX_SQRT_RATIO,
-            );
-            let swap_params = SwapParameters {
-                amount: i129 { mag: params.sell_token_amount.low, sign: false }, is_token1, sqrt_ratio_limit, skip_ahead: 100,
+            let router = IEkuboRouterDispatcher { contract_address: router_address };
+            router.swap(route_node, token_amount);
+            router.clear(buy_token_address);
+        }
+
+        fn quote(
+            self: @ContractState,
+            exchange_address: ContractAddress,
+            sell_token_address: ContractAddress,
+            sell_token_amount: u256,
+            buy_token_address: ContractAddress,
+            to: ContractAddress,
+            additional_swap_params: Array<felt252>,
+        ) -> u256 {
+            // Verify additional_swap_params
+            assert(additional_swap_params.len() == 6, 'Invalid swap params');
+
+            // Prepare swap params
+            let router_address = contract_address_const::<ROUTER_ADDRESS>();
+            let pool_key = PoolKey {
+                token0: (*additional_swap_params[0]).try_into().unwrap(),
+                token1: (*additional_swap_params[1]).try_into().unwrap(),
+                fee: (*additional_swap_params[2]).try_into().unwrap(),
+                tick_spacing: (*additional_swap_params[3]).try_into().unwrap(),
+                extension: (*additional_swap_params[4]).try_into().unwrap(),
             };
-            let delta = ekubo.swap(params.pool_key, swap_params);
+            let sqrt_ratio_distance: u256 = (*additional_swap_params[5]).into();
+            let is_token1 = pool_key.token1 == sell_token_address;
+            let pool_price = IEkuboCoreDispatcher { contract_address: exchange_address }.get_pool_price(pool_key);
+            let sqrt_ratio_limit = compute_sqrt_ratio_limit(pool_price.sqrt_ratio, sqrt_ratio_distance, is_token1, MIN_SQRT_RATIO, MAX_SQRT_RATIO);
+            let route_node = RouteNode { pool_key, sqrt_ratio_limit, skip_ahead: 100 };
+            assert(sell_token_amount.high == 0, 'Overflow: Unsupported amount');
+            let token_amount = TokenAmount { token: sell_token_address, amount: i129 { mag: sell_token_amount.low, sign: false } };
 
-            // Each swap generates a "delta", but does not trigger any token transfers.
-            // A negative delta indicates you are owed tokens. A positive delta indicates core owes you tokens.
+            // Swap
+            let router = IEkuboRouterDispatcher { contract_address: router_address };
+            let delta = router.quote_swap(route_node, token_amount);
 
-            // Approve sell_token to the exchange
-            let sell_token = IERC20Dispatcher { contract_address: params.sell_token_address };
-            let sell_amount: i129 = if is_token1 {
-                delta.amount1
+            if is_token1 {
+                return u256 { high: 0, low: delta.amount0.mag };
             } else {
-                delta.amount0
-            };
-            sell_token.approve(ekubo.contract_address, sell_amount.mag.into());
-            ekubo.pay(params.sell_token_address);
-
-            // Withdraw
-            let buy_amount: i129 = if is_token1 {
-                delta.amount0
-            } else {
-                delta.amount1
-            };
-            ekubo.withdraw(params.buy_token_address, params.to, buy_amount.mag);
+                return u256 { high: 0, low: delta.amount1.mag };
+            }
         }
     }
 }
+

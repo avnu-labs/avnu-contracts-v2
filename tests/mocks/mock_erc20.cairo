@@ -15,9 +15,8 @@ pub trait IERC20<TStorage> {
 pub mod MockERC20 {
     #[feature("deprecated-bounded-int-trait")]
     use core::integer::BoundedInt;
-    use starknet::ContractAddress;
-    use starknet::get_caller_address;
     use starknet::storage::{StorageMapReadAccess, StorageMapWriteAccess, StoragePointerReadAccess, StoragePointerWriteAccess};
+    use starknet::{ContractAddress, get_caller_address};
     use super::IERC20;
 
     #[storage]

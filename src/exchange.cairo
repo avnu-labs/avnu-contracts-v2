@@ -58,13 +58,13 @@ pub mod Exchange {
     use avnu::components::fee::{FeeComponent, FeePolicy};
     use avnu::external_solver_adapters::{IExternalSolverAdapterDispatcherTrait, IExternalSolverAdapterLibraryDispatcher};
     use avnu::interfaces::locker::{ILocker, ISwapAfterLockDispatcherTrait, ISwapAfterLockLibraryDispatcher};
-    use avnu::models::Route;
+    use avnu::models::{AlternativeSwap, BranchSwap, DirectSwap, Route, RouteSwap};
     use avnu_lib::components::ownable::OwnableComponent;
     use avnu_lib::components::upgradable::UpgradableComponent;
     use avnu_lib::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
     use avnu_lib::math::muldiv::muldiv;
     use core::dict::Felt252Dict;
-    use core::num::traits::Zero;
+    use core::num::traits::{SaturatingSub, Zero};
     use starknet::storage::{Map, StorageMapReadAccess, StorageMapWriteAccess};
     use starknet::{ClassHash, ContractAddress, get_caller_address, get_contract_address};
     use super::IExchange;
@@ -110,6 +110,7 @@ pub mod Exchange {
         #[flat]
         UpgradableEvent: UpgradableComponent::Event,
         Swap: Swap,
+        OptimizedSwap: OptimizedSwap,
     }
 
     #[derive(Drop, starknet::Event, PartialEq)]
@@ -120,6 +121,16 @@ pub mod Exchange {
         pub buy_address: ContractAddress,
         pub buy_amount: u256,
         pub beneficiary: ContractAddress,
+    }
+
+    #[derive(Drop, starknet::Event, PartialEq)]
+    pub struct OptimizedSwap {
+        pub sell_token: ContractAddress,
+        pub buy_token: ContractAddress,
+        pub principal_price: u256,
+        pub alternative_price: u256,
+        pub sell_token_amount_optimized: u256,
+        pub buy_token_amount_optimized: u256,
     }
 
     #[abi(embed_v0)]
@@ -484,7 +495,7 @@ pub mod Exchange {
                 let buy_token_balance = buy_token.balanceOf(contract_address);
                 buy_token_last_amount_received = buy_token_balance - buy_token_amount_received;
                 buy_token_amount_received = buy_token_balance;
-            };
+            }
 
             (sell_token_amount_used, buy_token_amount_received)
         }
@@ -526,26 +537,173 @@ pub mod Exchange {
 
             // Retrieve current route
             let route: Route = routes.pop_front().unwrap();
-
-            // Calculating tokens to be passed to the exchange
-            // percentage should be 2 * 10**10 for 2%
-            assert(route.percent > 0, 'Invalid route percent');
-            assert(route.percent <= MAX_ROUTE_PERCENT, 'Invalid route percent');
-            let sell_token_balance = IERC20Dispatcher { contract_address: route.sell_token }.balanceOf(contract_address);
-            let (sell_token_amount, overflows) = muldiv(sell_token_balance, route.percent.into(), MAX_ROUTE_PERCENT.into(), false);
-            assert(overflows == false, 'Overflow: Invalid percent');
-
-            // Get adapter class hash
-            let adapter_class_hash = self.get_adapter_class_hash(route.exchange_address);
-            assert(!adapter_class_hash.is_zero(), 'Unknown exchange');
-
-            // Call swap
-            ISwapAdapterLibraryDispatcher { class_hash: adapter_class_hash }
-                .swap(
-                    route.exchange_address, route.sell_token, sell_token_amount, route.buy_token, 0, contract_address, route.additional_swap_params,
-                );
+            match route.swap {
+                RouteSwap::Direct(swap) => self.apply_direct_swap(contract_address, route.sell_token, route.buy_token, swap),
+                RouteSwap::Branch(swap) => self.apply_branch_swap(contract_address, route.sell_token, route.buy_token, swap),
+            }
 
             self.apply_routes(routes, contract_address);
+        }
+
+        fn apply_direct_swap(
+            ref self: ContractState, contract_address: ContractAddress, sell_token: ContractAddress, buy_token: ContractAddress, swap: DirectSwap,
+        ) {
+            // Calculating tokens to be passed to the exchange
+            // percentage should be 2 * 10**10 for 2%
+            assert(swap.percent > 0, 'Invalid route percent');
+            assert(swap.percent <= MAX_ROUTE_PERCENT, 'Invalid route percent');
+
+            let sell_token_balance = IERC20Dispatcher { contract_address: sell_token }.balanceOf(contract_address);
+            let (sell_token_amount, overflows) = muldiv(sell_token_balance, swap.percent.into(), MAX_ROUTE_PERCENT.into(), false);
+            assert(overflows == false, 'Overflow: Invalid percent');
+
+            // Call swap
+            self
+                .resolve_exchange_dispatcher(swap.exchange_address)
+                .swap(swap.exchange_address, sell_token, sell_token_amount, buy_token, 0, contract_address, swap.additional_swap_params);
+        }
+
+        fn apply_branch_swap(
+            ref self: ContractState, contract_address: ContractAddress, sell_token: ContractAddress, buy_token: ContractAddress, swap: BranchSwap,
+        ) {
+            assert(swap.principal.percent > 0, 'Invalid route percent');
+            assert(swap.principal.percent <= MAX_ROUTE_PERCENT, 'Invalid route percent');
+
+            let sell_token_balance = IERC20Dispatcher { contract_address: sell_token }.balanceOf(contract_address);
+            let (sell_token_amount, overflow) = muldiv(sell_token_balance, swap.principal.percent.into(), MAX_ROUTE_PERCENT.into(), false);
+            assert(overflow == false, 'Overflow: Invalid percent');
+
+            // Compute the minimal price of execution for the alternative.
+            // We aim for 0.01% more than the principal price for the alternative to be executed.
+            let principal_amount_out = self
+                .resolve_exchange_dispatcher(swap.principal.exchange_address)
+                .quote(
+                    swap.principal.exchange_address,
+                    sell_token,
+                    sell_token_amount,
+                    buy_token,
+                    contract_address,
+                    swap.principal.additional_swap_params.clone(),
+                );
+
+            let (principal_price, overflow) = muldiv(principal_amount_out, 18446744073709551616, sell_token_amount, true);
+            assert(overflow == false, 'Overflow: Invalid price');
+
+            // Execute branch swap
+            let mut remaining_sell_token_amount = sell_token_amount;
+            for alternative in swap.alternatives {
+                if remaining_sell_token_amount == 0 {
+                    break;
+                }
+                let alternative_amount_in = self
+                    .apply_alternative_swap(contract_address, sell_token, remaining_sell_token_amount, buy_token, principal_price, alternative)
+                    .unwrap_or_default();
+
+                remaining_sell_token_amount = remaining_sell_token_amount.saturating_sub(alternative_amount_in);
+            }
+
+            if remaining_sell_token_amount > 0 {
+                // Call principal swap
+                self
+                    .resolve_exchange_dispatcher(swap.principal.exchange_address)
+                    .swap(
+                        swap.principal.exchange_address,
+                        sell_token,
+                        remaining_sell_token_amount,
+                        buy_token,
+                        0,
+                        contract_address,
+                        swap.principal.additional_swap_params,
+                    );
+            }
+        }
+
+        fn apply_alternative_swap(
+            ref self: ContractState,
+            contract_address: ContractAddress,
+            sell_token: ContractAddress,
+            sell_token_amount: u256,
+            buy_token: ContractAddress,
+            principal_price: u256,
+            swap: AlternativeSwap,
+        ) -> Option<u256> {
+            assert(swap.percent > 0, 'Invalid route percent');
+            assert(swap.percent <= MAX_ROUTE_PERCENT, 'Invalid route percent');
+
+            let (minimum_price, overflow) = muldiv(principal_price, 10001, 10000, false);
+            assert(overflow == false, 'Overflow: Invalid price');
+
+            // Try to match the minimum price set for the alternative swap to be effective. If the price constraint cannot
+            // be fullfilled then return None
+            let (alternative_amount_in, alternative_amount_out, alternative_price) = self
+                .optimize_alternative_swap_amount_in(contract_address, sell_token, sell_token_amount, buy_token, minimum_price, swap.clone())?;
+
+            self
+                .resolve_exchange_dispatcher(swap.exchange_address)
+                .swap(swap.exchange_address, sell_token, alternative_amount_in, buy_token, 0, contract_address, swap.additional_swap_params);
+
+            self
+                .emit(
+                    OptimizedSwap {
+                        sell_token: sell_token,
+                        buy_token: buy_token,
+                        principal_price: principal_price,
+                        alternative_price: alternative_price,
+                        sell_token_amount_optimized: alternative_amount_in,
+                        buy_token_amount_optimized: alternative_amount_out,
+                    },
+                );
+
+            Option::Some(alternative_amount_in)
+        }
+
+        fn optimize_alternative_swap_amount_in(
+            ref self: ContractState,
+            contract_address: ContractAddress,
+            sell_token: ContractAddress,
+            sell_token_amount: u256,
+            buy_token: ContractAddress,
+            minimum_price: u256,
+            swap: AlternativeSwap,
+        ) -> Option<(u256, u256, u256)> {
+            let (mut sell_token_amount, overflows) = muldiv(sell_token_amount, swap.percent.into(), MAX_ROUTE_PERCENT.into(), false);
+            if overflows {
+                return Option::None;
+            }
+
+            let exchange = self.resolve_exchange_dispatcher(swap.exchange_address);
+
+            let (mut iteration, mut result) = (0_u8, Option::None);
+            while iteration < 5 && result.is_none() {
+                let buy_token_amount = exchange
+                    .quote(swap.exchange_address, sell_token, sell_token_amount, buy_token, contract_address, swap.additional_swap_params.clone());
+
+                // compute price, we use 64 bits precision so 2**64 == 18446744073709551616
+                let (price, overflow) = muldiv(buy_token_amount, 18446744073709551616, sell_token_amount, true);
+                if !overflow && price >= minimum_price {
+                    result = Option::Some((sell_token_amount, buy_token_amount, price));
+                }
+
+                // We reduce the amount in by 10% at each iteration, resulting in halving the amout in at iteration 5.
+                let (new_sell_token_amount, _) = muldiv(sell_token_amount, 90, 100, false);
+
+                sell_token_amount = if new_sell_token_amount == 0 {
+                    1
+                } else {
+                    new_sell_token_amount
+                };
+                iteration += 1;
+            }
+
+            // Returns None if we didn't manage to match the price
+            result
+        }
+
+        fn resolve_exchange_dispatcher(self: @ContractState, exchange_address: ContractAddress) -> ISwapAdapterLibraryDispatcher {
+            let adapter_class_hash = self.get_adapter_class_hash(exchange_address);
+            assert(!adapter_class_hash.is_zero(), 'Unknown exchange');
+
+            ISwapAdapterLibraryDispatcher { class_hash: adapter_class_hash }
         }
 
         fn compute_swap_exact_token_to_integrator_fee_amount(
