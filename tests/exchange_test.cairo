@@ -1165,14 +1165,14 @@ mod MultiRouteSwap {
 
     #[test]
     #[available_gas(20000000)]
-    #[should_panic(expected: ('Beneficiary is not the caller', 'ENTRYPOINT_FAILED'))]
-    fn should_fail_when_beneficiary_is_not_the_caller() {
+    fn should_call_swap_when_beneficiary_is_not_the_caller() {
         // Given
         let (exchange, _, _) = deploy_exchange();
-        let beneficiary = contract_address_const::<0x12345>();
-        let sell_token = deploy_mock_token(beneficiary, 10, 1);
+        let caller = contract_address_const::<0x12345>();
+        let beneficiary = contract_address_const::<0x67890>();
+        let sell_token = deploy_mock_token(caller, 10, 1);
         let sell_token_address = sell_token.contract_address;
-        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        let buy_token = deploy_mock_token(caller, 0, 2);
         let buy_token_address = buy_token.contract_address;
         let sell_token_amount = u256 { low: 10, high: 0 };
         let buy_token_min_amount = u256 { low: 9, high: 0 };
@@ -1192,9 +1192,11 @@ mod MultiRouteSwap {
                     ),
                 },
             );
+        set_contract_address(caller);
+        sell_token.approve(exchange.contract_address, sell_token_amount);
 
-        // When & Then
-        exchange
+        // When
+        let result = exchange
             .multi_route_swap(
                 sell_token_address,
                 sell_token_amount,
@@ -1206,6 +1208,25 @@ mod MultiRouteSwap {
                 contract_address_const::<0x0>(),
                 routes,
             );
+
+        // Then
+        assert(result == true, 'invalid result');
+        let (mut keys, mut data) = pop_log_raw(exchange.contract_address).unwrap();
+        let event: Swap = starknet::Event::deserialize(ref keys, ref data).unwrap();
+        let expected_event = Swap {
+            taker_address: caller,
+            sell_address: sell_token_address,
+            sell_amount: sell_token_amount,
+            buy_address: buy_token_address,
+            buy_amount: u256 { low: 10, high: 0 },
+            beneficiary: beneficiary,
+        };
+        assert(event == expected_event, 'invalid swap event');
+
+        // Verify that caller paid tokens from and beneficiary receives tokens to
+        assert(sell_token.balanceOf(caller) == 0_u256, 'Invalid caller sell balance');
+        assert(buy_token.balanceOf(caller) == 0_u256, 'Invalid caller buy balance');
+        assert(buy_token.balanceOf(beneficiary) == 10_u256, 'Invalid beneficiary balance');
     }
 
     #[test]
@@ -2362,14 +2383,14 @@ mod SwapExactTokenTo {
 
     #[test]
     #[available_gas(20000000)]
-    #[should_panic(expected: ('Beneficiary is not the caller', 'ENTRYPOINT_FAILED'))]
-    fn should_fail_when_beneficiary_is_not_the_caller() {
+    fn should_swap_when_beneficiary_is_not_the_caller() {
         // Given
         let (exchange, _, _) = deploy_exchange();
-        let beneficiary = contract_address_const::<0x12345>();
-        let sell_token = deploy_mock_token(beneficiary, 10, 1);
+        let caller = contract_address_const::<0x12345>();
+        let beneficiary = contract_address_const::<0x67890>();
+        let sell_token = deploy_mock_token(caller, 10, 1);
         let sell_token_address = sell_token.contract_address;
-        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        let buy_token = deploy_mock_token(caller, 0, 2);
         let buy_token_address = buy_token.contract_address;
         let sell_token_max_amount = u256 { low: 10, high: 0 };
         let sell_token_amount = u256 { low: 9, high: 0 };
@@ -2389,11 +2410,13 @@ mod SwapExactTokenTo {
                     ),
                 },
             );
+        set_contract_address(caller);
+        sell_token.approve(exchange.contract_address, sell_token_max_amount);
         let integrator_fee_recipient = contract_address_const::<0x0>();
         let integrator_fee = 0_u128;
 
-        // When & Then
-        exchange
+        // When
+        let result = exchange
             .swap_exact_token_to(
                 sell_token_address,
                 sell_token_amount,
@@ -2405,6 +2428,25 @@ mod SwapExactTokenTo {
                 integrator_fee_recipient,
                 routes,
             );
+
+        // Then
+        assert(result == true, 'invalid result');
+        let (mut keys, mut data) = pop_log_raw(exchange.contract_address).unwrap();
+        let event: Swap = starknet::Event::deserialize(ref keys, ref data).unwrap();
+        let expected_event = Swap {
+            taker_address: caller,
+            sell_address: sell_token_address,
+            sell_amount: sell_token_amount,
+            buy_address: buy_token_address,
+            buy_amount: buy_token_amount,
+            beneficiary: beneficiary,
+        };
+        assert(event == expected_event, 'invalid swap event');
+
+        // Verify that caller paid tokens from and beneficiary receives tokens to
+        assert(sell_token.balanceOf(caller) == 1_u256, 'Invalid caller sell balance');
+        assert(buy_token.balanceOf(caller) == 0_u256, 'Invalid caller buy balance');
+        assert(buy_token.balanceOf(beneficiary) == 9_u256, 'Invalid beneficiary balance');
     }
 }
 
