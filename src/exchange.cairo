@@ -232,7 +232,7 @@ pub mod Exchange {
             let routes_span = routes.span();
 
             // Execute all the pre-swap actions (some checks, retrieve token from...)
-            self.before_swap(contract_address, caller_address, sell_token, sell_token_amount, buy_token, beneficiary, routes_span);
+            self.before_swap(contract_address, caller_address, sell_token, sell_token_amount, buy_token, routes_span);
 
             // We retrieve the fee policy and our fee amount in bps
             let (fee_policy, fees_bps) = self
@@ -301,7 +301,7 @@ pub mod Exchange {
 
             // Execute all the pre-swap actions (some checks, retrieve token from...)
             assert(sell_token_max_amount >= sell_token_amount, 'Invalid token from max amount');
-            self.before_swap(contract_address, caller_address, sell_token, sell_token_amount, buy_token, beneficiary, routes_span);
+            self.before_swap(contract_address, caller_address, sell_token, sell_token_amount, buy_token, routes_span);
 
             // We retrieve the fee policy
             let fee_policy = self.fee.get_fee_policy(sell_token_address, buy_token_address);
@@ -415,13 +415,8 @@ pub mod Exchange {
             sell_token: IERC20Dispatcher,
             sell_token_amount: u256,
             buy_token: IERC20Dispatcher,
-            beneficiary: ContractAddress,
             routes: Span<Route>,
         ) {
-            // In the future, the beneficiary may not be the caller
-            // Check if beneficiary == caller_address
-            assert(beneficiary == caller_address, 'Beneficiary is not the caller');
-
             // Transfer tokens to contract
             self.collect_sell_token(contract_address, caller_address, sell_token, sell_token_amount);
 
