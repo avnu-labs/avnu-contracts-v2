@@ -87,17 +87,6 @@ pub mod EkuboAdapter {
     #[storage]
     struct Storage {}
 
-    #[derive(Drop, Copy, Serde)]
-    struct SwapAfterLockParameters {
-        contract_address: ContractAddress,
-        to: ContractAddress,
-        sell_token_address: ContractAddress,
-        sell_token_amount: u256,
-        buy_token_address: ContractAddress,
-        pool_key: PoolKey,
-        sqrt_ratio_distance: u256,
-    }
-
     #[abi(embed_v0)]
     impl EkuboAdapter of ISwapAdapter<ContractState> {
         fn swap(

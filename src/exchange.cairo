@@ -13,10 +13,6 @@ pub trait IExchange<TContractState> {
     );
     fn get_adapter_class_hash(self: @TContractState, exchange_address: ContractAddress) -> ClassHash;
     fn set_adapter_class_hash(ref self: TContractState, exchange_address: ContractAddress, adapter_class_hash: ClassHash) -> bool;
-    fn get_external_solver_adapter_class_hash(self: @TContractState, external_solver_address: ContractAddress) -> ClassHash;
-    fn set_external_solver_adapter_class_hash(
-        ref self: TContractState, external_solver_address: ContractAddress, adapter_class_hash: ClassHash,
-    ) -> bool;
     fn multi_route_swap(
         ref self: TContractState,
         sell_token_address: ContractAddress,
@@ -41,23 +37,12 @@ pub trait IExchange<TContractState> {
         integrator_fee_recipient: ContractAddress,
         routes: Array<Route>,
     ) -> bool;
-    fn swap_external_solver(
-        ref self: TContractState,
-        user_address: ContractAddress,
-        sell_token_address: ContractAddress,
-        buy_token_address: ContractAddress,
-        beneficiary: ContractAddress,
-        external_solver_address: ContractAddress,
-        external_solver_adapter_calldata: Array<felt252>,
-    ) -> bool;
 }
 
 #[starknet::contract]
 pub mod Exchange {
     use avnu::adapters::{ISwapAdapterDispatcherTrait, ISwapAdapterLibraryDispatcher};
     use avnu::components::fee::{FeeComponent, FeePolicy};
-    use avnu::external_solver_adapters::{IExternalSolverAdapterDispatcherTrait, IExternalSolverAdapterLibraryDispatcher};
-    use avnu::interfaces::locker::{ILocker, ISwapAfterLockDispatcherTrait, ISwapAfterLockLibraryDispatcher};
     use avnu::models::{AlternativeSwap, BranchSwap, DirectSwap, Route, RouteSwap};
     use avnu_lib::components::ownable::OwnableComponent;
     use avnu_lib::components::upgradable::UpgradableComponent;
@@ -65,7 +50,7 @@ pub mod Exchange {
     use avnu_lib::math::muldiv::muldiv;
     use core::dict::Felt252Dict;
     use core::num::traits::{SaturatingSub, Zero};
-    use starknet::storage::{Map, StorageMapReadAccess, StorageMapWriteAccess};
+    use starknet::storage::{StorageMapReadAccess, StorageMapWriteAccess};
     use starknet::{ClassHash, ContractAddress, get_caller_address, get_contract_address};
     use super::IExchange;
 
@@ -97,7 +82,6 @@ pub mod Exchange {
         upgradable: UpgradableComponent::Storage,
         #[feature("deprecated_legacy_map")]
         AdapterClassHash: LegacyMap<ContractAddress, ClassHash>,
-        external_solver_adapter: Map<ContractAddress, ClassHash>,
     }
 
     #[event]
@@ -132,29 +116,6 @@ pub mod Exchange {
         pub alternative_price: u256,
         pub sell_token_amount_optimized: u256,
         pub buy_token_amount_optimized: u256,
-    }
-
-    #[abi(embed_v0)]
-    impl ExchangeLocker of ILocker<ContractState> {
-        fn locked(ref self: ContractState, id: u32, data: Array<felt252>) -> Array<felt252> {
-            let caller_address = get_caller_address();
-            let exchange_address = (*data[0]).try_into().unwrap();
-
-            // Only allow exchange's contract to call this method.
-            assert(caller_address == exchange_address, 'UNAUTHORIZED_CALLBACK');
-
-            // Get adapter class hash
-            // and verify that `exchange_address` is known
-            // `swap_after_lock` cannot be called by unknown contract address
-            let class_hash = self.get_adapter_class_hash(exchange_address);
-            assert(!class_hash.is_zero(), 'Unknown exchange');
-
-            // Call adapter to execute the swap
-            let adapter_dispatcher = ISwapAfterLockLibraryDispatcher { class_hash };
-            adapter_dispatcher.swap_after_lock(data);
-
-            ArrayTrait::new()
-        }
     }
 
     #[constructor]
@@ -198,18 +159,6 @@ pub mod Exchange {
         fn set_adapter_class_hash(ref self: ContractState, exchange_address: ContractAddress, adapter_class_hash: ClassHash) -> bool {
             self.ownable.assert_only_owner();
             self.AdapterClassHash.write(exchange_address, adapter_class_hash);
-            true
-        }
-
-        fn get_external_solver_adapter_class_hash(self: @ContractState, external_solver_address: ContractAddress) -> ClassHash {
-            self.external_solver_adapter.read(external_solver_address)
-        }
-
-        fn set_external_solver_adapter_class_hash(
-            ref self: ContractState, external_solver_address: ContractAddress, adapter_class_hash: ClassHash,
-        ) -> bool {
-            self.ownable.assert_only_owner();
-            self.external_solver_adapter.write(external_solver_address, adapter_class_hash);
             true
         }
 
@@ -376,36 +325,6 @@ pub mod Exchange {
             // Token to has already been checked
             checked_tokens.insert(buy_token_address.into(), 1);
             self.assert_no_remaining_tokens(contract_address, routes_span, checked_tokens);
-            true
-        }
-
-        fn swap_external_solver(
-            ref self: ContractState,
-            user_address: ContractAddress,
-            sell_token_address: ContractAddress,
-            buy_token_address: ContractAddress,
-            beneficiary: ContractAddress,
-            external_solver_address: ContractAddress,
-            external_solver_adapter_calldata: Array<felt252>,
-        ) -> bool {
-            // In the future, the beneficiary may not be the caller
-            // Check if beneficiary == caller_address
-            assert(beneficiary == user_address, 'Beneficiary is not the user');
-            let adapter_class_hash = self.get_external_solver_adapter_class_hash(external_solver_address);
-            assert(!adapter_class_hash.is_zero(), 'Unknown external solver');
-            let response = IExternalSolverAdapterLibraryDispatcher { class_hash: adapter_class_hash }
-                .swap(user_address, sell_token_address, buy_token_address, beneficiary, external_solver_adapter_calldata);
-            self
-                .emit(
-                    Swap {
-                        taker_address: user_address,
-                        sell_address: sell_token_address,
-                        sell_amount: response.sell_amount,
-                        buy_address: buy_token_address,
-                        buy_amount: response.buy_amount,
-                        beneficiary: user_address,
-                    },
-                );
             true
         }
     }

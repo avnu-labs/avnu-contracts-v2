@@ -1,5 +1,4 @@
 use avnu::adapters::ISwapAdapterDispatcher;
-use avnu::adapters::ekubo_adapter::EkuboAdapter;
 use avnu::adapters::jediswap_adapter::{IJediSwapRouterDispatcher, JediswapAdapter};
 use avnu::adapters::myswap_adapter::{IMySwapRouterDispatcher, MyswapAdapter};
 use avnu::adapters::sithswap_adapter::{ISithSwapRouterDispatcher, SithswapAdapter};
@@ -14,7 +13,6 @@ use starknet::testing::{pop_log_raw, set_contract_address};
 use starknet::{ClassHash, ContractAddress, contract_address_const};
 use super::mocks::mock_amm::{MockJediSwap, MockMySwap, MockSithSwap, MockSwapAdapter, MockTenkSwap};
 use super::mocks::mock_erc20::MockERC20;
-use super::mocks::mock_layerakira::MockLayerAkira;
 
 pub fn deploy_mock_token(recipient: ContractAddress, balance: felt252, salt: felt252) -> IERC20Dispatcher {
     let mut constructor_args: Array<felt252> = ArrayTrait::new();
@@ -100,18 +98,4 @@ pub fn deploy_mock_tenkswap() -> ITenkSwapRouterDispatcher {
     let (address, _) = deploy_syscall(MockTenkSwap::TEST_CLASS_HASH.try_into().unwrap(), 0, constructor_args.span(), false)
         .expect('mock tenkswap deploy failed');
     ITenkSwapRouterDispatcher { contract_address: address }
-}
-
-pub fn deploy_ekubo_adapter() -> ISwapAdapterDispatcher {
-    let mut constructor_args: Array<felt252> = ArrayTrait::new();
-    let (address, _) = deploy_syscall(EkuboAdapter::TEST_CLASS_HASH.try_into().unwrap(), 0, constructor_args.span(), false)
-        .expect('ekubo adapter deploy failed');
-    ISwapAdapterDispatcher { contract_address: address }
-}
-
-pub fn deploy_mock_layer_akira() -> ContractAddress {
-    let mut constructor_args: Array<felt252> = ArrayTrait::new();
-    let (address, _) = deploy_syscall(MockLayerAkira::TEST_CLASS_HASH.try_into().unwrap(), 0, constructor_args.span(), false)
-        .expect('mock layer akira deploy failed');
-    address
 }

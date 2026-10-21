@@ -1,11 +1,8 @@
 pub mod circle_adapter;
 pub mod ekubo_adapter;
 pub mod endur_adapter;
-pub mod haiko_adapter;
-pub mod haiko_replicating_solver_adapter;
 pub mod jediswap_adapter;
 pub mod myswap_adapter;
-pub mod myswapv2_adapter;
 pub mod nostra_adapter;
 pub mod nostrav2_adapter;
 pub mod sithswap_adapter;
