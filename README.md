@@ -106,7 +106,7 @@ The component includes the following definitions:
 - `token_fees`: Configuration for a specific token address. It specifies:
   - The weight (used to determine whether fees are taken on the buy or sell side).
 - `whitelisted_integrators`: A list of integrators exempted from certain fees.
-- `swap_exact_token_to_fees_bps`: The fee rate in bps for the swap_exact_token_to entrypoint.
+- `swap_exact_token_to_fees_bps`: The fee rate in bps for the swap_exact_token_to entrypoint (collected on top of the positive slippage).
 
 #### Fee Calculation Process
 

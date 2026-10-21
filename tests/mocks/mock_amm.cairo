@@ -112,6 +112,7 @@ pub trait IMockPriceFunction<T> {
 pub enum MockPriceFunction {
     Constant: MockConstantPriceFunction,
     UniV2: MockUniV2PriceFunction,
+    IncreasingRate: MockIncreasingRatePriceFunction,
 }
 
 impl IMockPriceFunctionImpl of IMockPriceFunction<MockPriceFunction> {
@@ -119,6 +120,7 @@ impl IMockPriceFunctionImpl of IMockPriceFunction<MockPriceFunction> {
         match self {
             MockPriceFunction::Constant(x) => x.price(amount_in),
             MockPriceFunction::UniV2(x) => x.price(amount_in),
+            MockPriceFunction::IncreasingRate(x) => x.price(amount_in),
         }
     }
 }
@@ -143,6 +145,21 @@ pub struct MockUniV2PriceFunction {
 impl IMockUniV2PriceFunctionImpl of IMockPriceFunction<MockUniV2PriceFunction> {
     fn price(self: @MockUniV2PriceFunction, amount_in: u256) -> u256 {
         let (result, _) = muldiv(*self.reserve_b, 18446744073709551616, *self.reserve_a + amount_in, false);
+
+        result
+    }
+}
+
+// The rate improves with the amount (amount_in / (amount_in + offset)), so smaller swaps get a worse rate.
+// Used to make the swap_exact_token_to retry loop undershoot and run several iterations.
+#[derive(Debug, Serde, Clone, Drop)]
+pub struct MockIncreasingRatePriceFunction {
+    pub offset: u256,
+}
+
+impl IMockIncreasingRatePriceFunctionImpl of IMockPriceFunction<MockIncreasingRatePriceFunction> {
+    fn price(self: @MockIncreasingRatePriceFunction, amount_in: u256) -> u256 {
+        let (result, _) = muldiv(18446744073709551616, amount_in, amount_in + *self.offset, false);
 
         result
     }

@@ -49,8 +49,7 @@ pub mod FeeComponent {
         fees_bps_0: u128,
         // Fees for route len > 1
         fees_bps_1: u128,
-        // The amount of fees in bps that we try to collect if user doesn't get the expected amount of buy token
-        // during the first interation of swapExactTokenTo.
+        // Fees for the swap_exact_token_to entrypoint (applied on top of any positive slippage)
         swap_exact_token_to_fees_bps: u128,
         // The address that will receive the fees
         fees_recipient: ContractAddress,
@@ -177,6 +176,24 @@ pub mod FeeComponent {
             (policy, fees_bps)
         }
 
+        fn get_swap_exact_token_to_fees(
+            self: @ComponentState<TContractState>,
+            sell_token_address: ContractAddress,
+            buy_token_address: ContractAddress,
+            integrator_fee_recipient: ContractAddress,
+            integrator_fee_amount_bps: u128,
+        ) -> (FeePolicy, u128) {
+            let policy = self.get_fee_policy(sell_token_address, buy_token_address);
+            let fees_bps = self.swap_exact_token_to_fees_bps.read();
+
+            let is_integrator_whitelisted = self.whitelisted_integrators.read(integrator_fee_recipient);
+            if (is_integrator_whitelisted && integrator_fee_amount_bps >= fees_bps) {
+                return (policy, 0);
+            }
+
+            (policy, fees_bps)
+        }
+
         fn get_fee_policy(
             self: @ComponentState<TContractState>, sell_token_address: ContractAddress, buy_token_address: ContractAddress,
         ) -> FeePolicy {
@@ -224,6 +241,18 @@ pub mod FeeComponent {
                 fee_amount
             } else {
                 0
+            }
+        }
+
+        fn compute_amount_with_fees(self: @ComponentState<TContractState>, amount: u256, fees_bps: u128, integrator_fee_amount_bps: u128) -> u256 {
+            let total_fees_bps: u256 = fees_bps.into() + integrator_fee_amount_bps.into();
+            if (!total_fees_bps.is_zero()) {
+                assert(total_fees_bps < 10000_u256, 'Fees are too high');
+                let (amount_with_fees, overflows) = muldiv(amount, 10000_u256, 10000_u256 - total_fees_bps, true);
+                assert(overflows == false, 'Overflow: Invalid fee');
+                amount_with_fees
+            } else {
+                amount
             }
         }
 

@@ -11,6 +11,7 @@ use starknet::testing::{pop_log_raw, set_contract_address};
 #[feature("deprecated-starknet-consts")]
 use starknet::{ContractAddress, contract_address_const};
 use super::helper::{deploy_exchange, deploy_mock_layer_akira, deploy_mock_token};
+use super::mocks::mock_amm::{MockIncreasingRatePriceFunction, MockPriceFunction};
 use super::mocks::mock_erc20::MockERC20::Transfer;
 
 const ROUTE_PERCENT_FACTOR: u128 = 10000000000;
@@ -1583,6 +1584,94 @@ mod MultiRouteSwap {
         assert(pop_log_raw(buy_token_address).is_none(), 'no more buy_token events');
         assert(pop_log_raw(sell_token_address).is_none(), 'no more sell_token events');
     }
+    #[test]
+    #[available_gas(40000000)]
+    fn should_send_tokens_already_held_by_exchange_to_fees_recipient() {
+        // Given
+        let (exchange, ownable, fee) = deploy_exchange();
+        let beneficiary = contract_address_const::<0x12345>();
+        set_contract_address(ownable.get_owner());
+        let fees_recipient = contract_address_const::<0x1111>();
+        fee.set_fees_recipient(fees_recipient);
+        fee.set_fees_bps_1(20);
+        let sell_token = deploy_mock_token(beneficiary, 1500, 1);
+        let sell_token_address = sell_token.contract_address;
+        let config = TokenFeeConfig { weight: 10 };
+        fee.set_token_fee_config(sell_token_address, config); // now policy should be FeeOnSell
+        let intermediate_token = deploy_mock_token(beneficiary, 700, 3);
+        let intermediate_token_address = intermediate_token.contract_address;
+        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        let buy_token_address = buy_token.contract_address;
+        let sell_token_amount = u256 { low: 1000, high: 0 };
+        let buy_token_min_amount = u256 { low: 990, high: 0 };
+        let buy_token_amount = u256 { low: 990, high: 0 };
+        let mut routes = ArrayTrait::new();
+        routes
+            .append(
+                Route {
+                    sell_token: sell_token_address,
+                    buy_token: intermediate_token_address,
+                    swap: RouteSwap::Direct(
+                        DirectSwap {
+                            exchange_address: contract_address_const::<0x12>(),
+                            percent: 100 * ROUTE_PERCENT_FACTOR,
+                            additional_swap_params: ArrayTrait::new(),
+                        },
+                    ),
+                },
+            );
+        routes
+            .append(
+                Route {
+                    sell_token: intermediate_token_address,
+                    buy_token: buy_token_address,
+                    swap: RouteSwap::Direct(
+                        DirectSwap {
+                            exchange_address: contract_address_const::<0x12>(),
+                            percent: 100 * ROUTE_PERCENT_FACTOR,
+                            additional_swap_params: ArrayTrait::new(),
+                        },
+                    ),
+                },
+            );
+        set_contract_address(beneficiary);
+        // Tokens sent to the exchange before the swap would otherwise be swapped without fees
+        sell_token.transfer(exchange.contract_address, 500);
+        intermediate_token.transfer(exchange.contract_address, 700);
+        sell_token.approve(exchange.contract_address, sell_token_amount);
+
+        // When
+        let result = exchange
+            .multi_route_swap(
+                sell_token_address,
+                sell_token_amount,
+                buy_token_address,
+                buy_token_amount,
+                buy_token_min_amount,
+                beneficiary,
+                0,
+                contract_address_const::<0x0>(),
+                routes,
+            );
+
+        // Then
+        assert(result == true, 'invalid result');
+
+        // Verify that only sell_token_amount minus fees is swapped
+        let balance = buy_token.balanceOf(beneficiary);
+        assert(balance == 998_u256, 'Invalid beneficiary balance');
+
+        // Verify that tokens already held by the exchange go to the fees recipient, on top of avnu's fees
+        let balance = sell_token.balanceOf(fees_recipient);
+        assert(balance == 502_u256, 'Invalid avnu sell balance');
+        let balance = intermediate_token.balanceOf(fees_recipient);
+        assert(balance == 700_u256, 'Invalid avnu intermediate bal');
+
+        // Verify that no token remains in the exchange
+        assert(sell_token.balanceOf(exchange.contract_address) == 0_u256, 'Residual sell token');
+        assert(intermediate_token.balanceOf(exchange.contract_address) == 0_u256, 'Residual intermediate token');
+        assert(buy_token.balanceOf(exchange.contract_address) == 0_u256, 'Residual buy token');
+    }
 }
 
 mod SwapExactTokenTo {
@@ -1658,7 +1747,7 @@ mod SwapExactTokenTo {
         let expected_event = Swap {
             taker_address: beneficiary,
             sell_address: sell_token_address,
-            sell_amount: 100050,
+            sell_amount: 100101,
             buy_address: buy_token_address,
             buy_amount: buy_token_amount,
             beneficiary: beneficiary,
@@ -1670,18 +1759,311 @@ mod SwapExactTokenTo {
         let balance = buy_token.balanceOf(beneficiary);
         assert(balance == 100000_u256, 'Invalid beneficiary balance');
         let balance = sell_token.balanceOf(beneficiary);
-        assert(balance == 19950_u256, 'Invalid beneficiary balance');
-
-        let (mut keys, mut data) = pop_log_raw(buy_token_address).unwrap();
-        let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
-        let expected_event = Transfer { to: beneficiary, amount: 100000_u256 };
-        assert(event == expected_event, 'Invalid transfer event');
+        assert(balance == 19899_u256, 'Invalid beneficiary balance');
 
         // Verify avnu's fees
         let (mut keys, mut data) = pop_log_raw(buy_token_address).unwrap();
         let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
         let expected_event = Transfer { to: fees_recipient, amount: 50_u256 };
         assert(event == expected_event, 'invalid avnu fees transfer');
+
+        let (mut keys, mut data) = pop_log_raw(buy_token_address).unwrap();
+        let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
+        let expected_event = Transfer { to: beneficiary, amount: 100000_u256 };
+        assert(event == expected_event, 'Invalid transfer event');
+
+        // Verify avnu's positive slippage
+        let (mut keys, mut data) = pop_log_raw(buy_token_address).unwrap();
+        let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
+        let expected_event = Transfer { to: fees_recipient, amount: 51_u256 };
+        assert(event == expected_event, 'invalid avnu surplus transfer');
+
+        assert(pop_log_raw(buy_token_address).is_none(), 'no more buy_token events');
+        assert(pop_log_raw(sell_token_address).is_none(), 'no more sell_token events');
+    }
+
+    #[test]
+    #[available_gas(20000000)]
+    fn should_take_fees_when_first_swap_reaches_buy_token_amount() {
+        // Given
+        let (exchange, ownable, fee) = deploy_exchange();
+        let beneficiary = contract_address_const::<0x12345>();
+        let sell_token = deploy_mock_token(beneficiary, 120000, 1);
+        let sell_token_address = sell_token.contract_address;
+        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        let buy_token_address = buy_token.contract_address;
+        set_contract_address(ownable.get_owner());
+        let fees_recipient = contract_address_const::<0x1111>();
+        fee.set_fees_recipient(fees_recipient);
+        fee.set_swap_exact_token_to_fees_bps(5_u128);
+        let sell_token_max_amount = u256 { low: 120000, high: 0 };
+        let sell_token_amount = u256 { low: 100000, high: 0 };
+        let buy_token_amount = u256 { low: 100000, high: 0 };
+        let mut routes = ArrayTrait::new();
+        routes
+            .append(
+                Route {
+                    sell_token: sell_token_address,
+                    buy_token: buy_token_address,
+                    swap: RouteSwap::Direct(
+                        DirectSwap {
+                            exchange_address: contract_address_const::<0x12>(),
+                            percent: 100 * ROUTE_PERCENT_FACTOR,
+                            additional_swap_params: ArrayTrait::new(),
+                        },
+                    ),
+                },
+            );
+        set_contract_address(beneficiary);
+        sell_token.approve(exchange.contract_address, sell_token_max_amount);
+        let integrator_fee_recipient = contract_address_const::<0x0>();
+        let integrator_fee = 0_u128;
+
+        // When
+        let result = exchange
+            .swap_exact_token_to(
+                sell_token_address,
+                sell_token_amount,
+                sell_token_max_amount,
+                buy_token_address,
+                buy_token_amount,
+                beneficiary,
+                integrator_fee,
+                integrator_fee_recipient,
+                routes,
+            );
+
+        // Then
+        assert(result == true, 'invalid result');
+        let (mut keys, mut data) = pop_log_raw(exchange.contract_address).unwrap();
+        let event: Swap = starknet::Event::deserialize(ref keys, ref data).unwrap();
+        let expected_event = Swap {
+            taker_address: beneficiary,
+            sell_address: sell_token_address,
+            sell_amount: 100101,
+            buy_address: buy_token_address,
+            buy_amount: buy_token_amount,
+            beneficiary: beneficiary,
+        };
+        assert(event == expected_event, 'invalid swap event');
+        assert(pop_log_raw(exchange.contract_address).is_none(), 'no more events');
+
+        // Verify that beneficiary receives tokens to
+        let balance = buy_token.balanceOf(beneficiary);
+        assert(balance == 100000_u256, 'Invalid beneficiary balance');
+        let balance = sell_token.balanceOf(beneficiary);
+        assert(balance == 19899_u256, 'Invalid beneficiary balance');
+
+        // Verify avnu's fees
+        let (mut keys, mut data) = pop_log_raw(buy_token_address).unwrap();
+        let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
+        let expected_event = Transfer { to: fees_recipient, amount: 50_u256 };
+        assert(event == expected_event, 'invalid avnu fees transfer');
+
+        let (mut keys, mut data) = pop_log_raw(buy_token_address).unwrap();
+        let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
+        let expected_event = Transfer { to: beneficiary, amount: 100000_u256 };
+        assert(event == expected_event, 'Invalid transfer event');
+
+        // Verify avnu's positive slippage
+        let (mut keys, mut data) = pop_log_raw(buy_token_address).unwrap();
+        let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
+        let expected_event = Transfer { to: fees_recipient, amount: 51_u256 };
+        assert(event == expected_event, 'invalid avnu surplus transfer');
+
+        assert(pop_log_raw(buy_token_address).is_none(), 'no more buy_token events');
+        assert(pop_log_raw(sell_token_address).is_none(), 'no more sell_token events');
+    }
+
+    #[test]
+    #[available_gas(20000000)]
+    fn should_take_fees_and_surplus_when_first_swap_exceeds_buy_token_amount() {
+        // Given
+        let (exchange, ownable, fee) = deploy_exchange();
+        let beneficiary = contract_address_const::<0x12345>();
+        let sell_token = deploy_mock_token(beneficiary, 120000, 1);
+        let sell_token_address = sell_token.contract_address;
+        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        let buy_token_address = buy_token.contract_address;
+        set_contract_address(ownable.get_owner());
+        let fees_recipient = contract_address_const::<0x1111>();
+        fee.set_fees_recipient(fees_recipient);
+        fee.set_swap_exact_token_to_fees_bps(5_u128);
+        let sell_token_max_amount = u256 { low: 120000, high: 0 };
+        let sell_token_amount = u256 { low: 101000, high: 0 };
+        let buy_token_amount = u256 { low: 100000, high: 0 };
+        let mut routes = ArrayTrait::new();
+        routes
+            .append(
+                Route {
+                    sell_token: sell_token_address,
+                    buy_token: buy_token_address,
+                    swap: RouteSwap::Direct(
+                        DirectSwap {
+                            exchange_address: contract_address_const::<0x12>(),
+                            percent: 100 * ROUTE_PERCENT_FACTOR,
+                            additional_swap_params: ArrayTrait::new(),
+                        },
+                    ),
+                },
+            );
+        set_contract_address(beneficiary);
+        sell_token.approve(exchange.contract_address, sell_token_max_amount);
+        let integrator_fee_recipient = contract_address_const::<0x0>();
+        let integrator_fee = 0_u128;
+
+        // When
+        let result = exchange
+            .swap_exact_token_to(
+                sell_token_address,
+                sell_token_amount,
+                sell_token_max_amount,
+                buy_token_address,
+                buy_token_amount,
+                beneficiary,
+                integrator_fee,
+                integrator_fee_recipient,
+                routes,
+            );
+
+        // Then
+        assert(result == true, 'invalid result');
+        let (mut keys, mut data) = pop_log_raw(exchange.contract_address).unwrap();
+        let event: Swap = starknet::Event::deserialize(ref keys, ref data).unwrap();
+        let expected_event = Swap {
+            taker_address: beneficiary,
+            sell_address: sell_token_address,
+            sell_amount: 101000,
+            buy_address: buy_token_address,
+            buy_amount: buy_token_amount,
+            beneficiary: beneficiary,
+        };
+        assert(event == expected_event, 'invalid swap event');
+        assert(pop_log_raw(exchange.contract_address).is_none(), 'no more events');
+
+        // Verify that beneficiary receives tokens to
+        let balance = buy_token.balanceOf(beneficiary);
+        assert(balance == 100000_u256, 'Invalid beneficiary balance');
+        let balance = sell_token.balanceOf(beneficiary);
+        assert(balance == 19000_u256, 'Invalid beneficiary balance');
+
+        // Verify avnu's fees
+        let (mut keys, mut data) = pop_log_raw(buy_token_address).unwrap();
+        let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
+        let expected_event = Transfer { to: fees_recipient, amount: 50_u256 };
+        assert(event == expected_event, 'invalid avnu fees transfer');
+
+        let (mut keys, mut data) = pop_log_raw(buy_token_address).unwrap();
+        let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
+        let expected_event = Transfer { to: beneficiary, amount: 100000_u256 };
+        assert(event == expected_event, 'Invalid transfer event');
+
+        // Verify avnu's positive slippage
+        let (mut keys, mut data) = pop_log_raw(buy_token_address).unwrap();
+        let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
+        let expected_event = Transfer { to: fees_recipient, amount: 950_u256 };
+        assert(event == expected_event, 'invalid avnu surplus transfer');
+
+        assert(pop_log_raw(buy_token_address).is_none(), 'no more buy_token events');
+        assert(pop_log_raw(sell_token_address).is_none(), 'no more sell_token events');
+    }
+
+    #[test]
+    #[available_gas(20000000)]
+    fn should_take_avnu_fees_and_integrator_fees_in_buy_token() {
+        // Given
+        let (exchange, ownable, fee) = deploy_exchange();
+        let beneficiary = contract_address_const::<0x12345>();
+        let sell_token = deploy_mock_token(beneficiary, 120000, 1);
+        let sell_token_address = sell_token.contract_address;
+        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        let buy_token_address = buy_token.contract_address;
+        set_contract_address(ownable.get_owner());
+        let fees_recipient = contract_address_const::<0x1111>();
+        fee.set_fees_recipient(fees_recipient);
+        fee.set_swap_exact_token_to_fees_bps(5_u128);
+        let sell_token_max_amount = u256 { low: 120000, high: 0 };
+        let sell_token_amount = u256 { low: 80000, high: 0 };
+        let buy_token_amount = u256 { low: 100000, high: 0 };
+        let mut routes = ArrayTrait::new();
+        routes
+            .append(
+                Route {
+                    sell_token: sell_token_address,
+                    buy_token: buy_token_address,
+                    swap: RouteSwap::Direct(
+                        DirectSwap {
+                            exchange_address: contract_address_const::<0x12>(),
+                            percent: 100 * ROUTE_PERCENT_FACTOR,
+                            additional_swap_params: ArrayTrait::new(),
+                        },
+                    ),
+                },
+            );
+        set_contract_address(beneficiary);
+        sell_token.approve(exchange.contract_address, sell_token_max_amount);
+        let integrator_fee_recipient = contract_address_const::<'INTEGRATOR'>();
+        let integrator_fee = 100_u128;
+
+        // When
+        let result = exchange
+            .swap_exact_token_to(
+                sell_token_address,
+                sell_token_amount,
+                sell_token_max_amount,
+                buy_token_address,
+                buy_token_amount,
+                beneficiary,
+                integrator_fee,
+                integrator_fee_recipient,
+                routes,
+            );
+
+        // Then
+        assert(result == true, 'invalid result');
+        let (mut keys, mut data) = pop_log_raw(exchange.contract_address).unwrap();
+        let event: Swap = starknet::Event::deserialize(ref keys, ref data).unwrap();
+        let expected_event = Swap {
+            taker_address: beneficiary,
+            sell_address: sell_token_address,
+            sell_amount: 101112,
+            buy_address: buy_token_address,
+            buy_amount: buy_token_amount,
+            beneficiary: beneficiary,
+        };
+        assert(event == expected_event, 'invalid swap event');
+        assert(pop_log_raw(exchange.contract_address).is_none(), 'no more events');
+
+        // Verify that beneficiary receives tokens to
+        let balance = buy_token.balanceOf(beneficiary);
+        assert(balance == 100000_u256, 'Invalid beneficiary balance');
+        let balance = sell_token.balanceOf(beneficiary);
+        assert(balance == 18888_u256, 'Invalid beneficiary balance');
+
+        // Verify integrator's fees
+        let (mut keys, mut data) = pop_log_raw(buy_token_address).unwrap();
+        let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
+        let expected_event = Transfer { to: integrator_fee_recipient, amount: 1011_u256 };
+        assert(event == expected_event, 'invalid integrator transfer');
+        let balance = buy_token.balanceOf(integrator_fee_recipient);
+        assert(balance == 1011_u256, 'Invalid integrator balance');
+
+        // Verify avnu's fees
+        let (mut keys, mut data) = pop_log_raw(buy_token_address).unwrap();
+        let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
+        let expected_event = Transfer { to: fees_recipient, amount: 50_u256 };
+        assert(event == expected_event, 'invalid avnu fees transfer');
+
+        let (mut keys, mut data) = pop_log_raw(buy_token_address).unwrap();
+        let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
+        let expected_event = Transfer { to: beneficiary, amount: 100000_u256 };
+        assert(event == expected_event, 'Invalid transfer event');
+
+        // Verify avnu's positive slippage
+        let (mut keys, mut data) = pop_log_raw(buy_token_address).unwrap();
+        let event: Transfer = starknet::Event::deserialize(ref keys, ref data).unwrap();
+        let expected_event = Transfer { to: fees_recipient, amount: 51_u256 };
+        assert(event == expected_event, 'invalid avnu surplus transfer');
 
         assert(pop_log_raw(buy_token_address).is_none(), 'no more buy_token events');
         assert(pop_log_raw(sell_token_address).is_none(), 'no more sell_token events');
@@ -1826,7 +2208,7 @@ mod SwapExactTokenTo {
         let expected_event = Swap {
             taker_address: beneficiary,
             sell_address: sell_token_address,
-            sell_amount: 101000,
+            sell_amount: 101011,
             buy_address: buy_token_address,
             buy_amount: buy_token_amount,
             beneficiary: beneficiary,
@@ -1838,13 +2220,435 @@ mod SwapExactTokenTo {
         let balance = buy_token.balanceOf(beneficiary);
         assert(balance == 100000_u256, 'Invalid beneficiary balance');
         let balance = sell_token.balanceOf(beneficiary);
-        assert(balance == 19000_u256, 'Invalid beneficiary balance');
+        assert(balance == 18989_u256, 'Invalid beneficiary balance');
 
         // Verify that integrator balance
         let balance = sell_token.balanceOf(integrator_fee_recipient);
-        assert(balance == 792_u256, 'Invalid integrator balance');
+        assert(balance == 1010_u256, 'Invalid integrator balance');
         let balance = buy_token.balanceOf(integrator_fee_recipient);
         assert(balance == 0_u256, 'Invalid integrator balance');
+    }
+
+    #[test]
+    #[available_gas(20000000)]
+    fn should_take_avnu_fees_and_integrator_fees_in_sell_token() {
+        // Given
+        let (exchange, ownable, fee) = deploy_exchange();
+        let beneficiary = contract_address_const::<0x12345>();
+        let sell_token = deploy_mock_token(beneficiary, 120000, 1);
+        let sell_token_address = sell_token.contract_address;
+        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        let buy_token_address = buy_token.contract_address;
+        let config = TokenFeeConfig { weight: 10 };
+        fee.set_token_fee_config(sell_token_address, config); // now policy should be FeeOnSell
+        set_contract_address(ownable.get_owner());
+        let fees_recipient = contract_address_const::<0x1111>();
+        fee.set_fees_recipient(fees_recipient);
+        fee.set_swap_exact_token_to_fees_bps(5_u128);
+        let sell_token_max_amount = u256 { low: 120000, high: 0 };
+        let sell_token_amount = u256 { low: 80000, high: 0 };
+        let buy_token_amount = u256 { low: 100000, high: 0 };
+        let mut routes = ArrayTrait::new();
+        routes
+            .append(
+                Route {
+                    sell_token: sell_token_address,
+                    buy_token: buy_token_address,
+                    swap: RouteSwap::Direct(
+                        DirectSwap {
+                            exchange_address: contract_address_const::<0x12>(),
+                            percent: 100 * ROUTE_PERCENT_FACTOR,
+                            additional_swap_params: ArrayTrait::new(),
+                        },
+                    ),
+                },
+            );
+        set_contract_address(beneficiary);
+        sell_token.approve(exchange.contract_address, sell_token_max_amount);
+        let integrator_fee_recipient = contract_address_const::<'INTEGRATOR'>();
+        let integrator_fee = 100_u128;
+
+        // When
+        let result = exchange
+            .swap_exact_token_to(
+                sell_token_address,
+                sell_token_amount,
+                sell_token_max_amount,
+                buy_token_address,
+                buy_token_amount,
+                beneficiary,
+                integrator_fee,
+                integrator_fee_recipient,
+                routes,
+            );
+
+        // Then
+        assert(result == true, 'invalid result');
+        let (mut keys, mut data) = pop_log_raw(exchange.contract_address).unwrap();
+        let event: Swap = starknet::Event::deserialize(ref keys, ref data).unwrap();
+        let expected_event = Swap {
+            taker_address: beneficiary,
+            sell_address: sell_token_address,
+            sell_amount: 101112,
+            buy_address: buy_token_address,
+            buy_amount: buy_token_amount,
+            beneficiary: beneficiary,
+        };
+        assert(event == expected_event, 'invalid swap event');
+        assert(pop_log_raw(exchange.contract_address).is_none(), 'no more events');
+
+        // Verify that beneficiary receives tokens to
+        let balance = buy_token.balanceOf(beneficiary);
+        assert(balance == 100000_u256, 'Invalid beneficiary balance');
+        let balance = sell_token.balanceOf(beneficiary);
+        assert(balance == 18888_u256, 'Invalid beneficiary balance');
+
+        // Verify that integrator balance
+        let balance = sell_token.balanceOf(integrator_fee_recipient);
+        assert(balance == 1011_u256, 'Invalid integrator balance');
+        let balance = buy_token.balanceOf(integrator_fee_recipient);
+        assert(balance == 0_u256, 'Invalid integrator balance');
+
+        // Verify avnu's fees: fee in sell token, positive slippage in buy token
+        let balance = sell_token.balanceOf(fees_recipient);
+        assert(balance == 50_u256, 'Invalid avnu sell balance');
+        let balance = buy_token.balanceOf(fees_recipient);
+        assert(balance == 51_u256, 'Invalid avnu buy balance');
+    }
+
+    #[test]
+    #[available_gas(20000000)]
+    fn should_take_avnu_fees_in_sell_token_when_no_integrator() {
+        // Given
+        let (exchange, ownable, fee) = deploy_exchange();
+        let beneficiary = contract_address_const::<0x12345>();
+        let sell_token = deploy_mock_token(beneficiary, 120000, 1);
+        let sell_token_address = sell_token.contract_address;
+        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        let buy_token_address = buy_token.contract_address;
+        let config = TokenFeeConfig { weight: 10 };
+        fee.set_token_fee_config(sell_token_address, config); // now policy should be FeeOnSell
+        set_contract_address(ownable.get_owner());
+        let fees_recipient = contract_address_const::<0x1111>();
+        fee.set_fees_recipient(fees_recipient);
+        fee.set_swap_exact_token_to_fees_bps(5_u128);
+        let sell_token_max_amount = u256 { low: 120000, high: 0 };
+        let sell_token_amount = u256 { low: 80000, high: 0 };
+        let buy_token_amount = u256 { low: 100000, high: 0 };
+        let mut routes = ArrayTrait::new();
+        routes
+            .append(
+                Route {
+                    sell_token: sell_token_address,
+                    buy_token: buy_token_address,
+                    swap: RouteSwap::Direct(
+                        DirectSwap {
+                            exchange_address: contract_address_const::<0x12>(),
+                            percent: 100 * ROUTE_PERCENT_FACTOR,
+                            additional_swap_params: ArrayTrait::new(),
+                        },
+                    ),
+                },
+            );
+        set_contract_address(beneficiary);
+        sell_token.approve(exchange.contract_address, sell_token_max_amount);
+        let integrator_fee_recipient = contract_address_const::<0x0>();
+        let integrator_fee = 0_u128;
+
+        // When
+        let result = exchange
+            .swap_exact_token_to(
+                sell_token_address,
+                sell_token_amount,
+                sell_token_max_amount,
+                buy_token_address,
+                buy_token_amount,
+                beneficiary,
+                integrator_fee,
+                integrator_fee_recipient,
+                routes,
+            );
+
+        // Then
+        assert(result == true, 'invalid result');
+        let (mut keys, mut data) = pop_log_raw(exchange.contract_address).unwrap();
+        let event: Swap = starknet::Event::deserialize(ref keys, ref data).unwrap();
+        let expected_event = Swap {
+            taker_address: beneficiary,
+            sell_address: sell_token_address,
+            sell_amount: 100101,
+            buy_address: buy_token_address,
+            buy_amount: buy_token_amount,
+            beneficiary: beneficiary,
+        };
+        assert(event == expected_event, 'invalid swap event');
+        assert(pop_log_raw(exchange.contract_address).is_none(), 'no more events');
+
+        // Verify that beneficiary receives tokens to
+        let balance = buy_token.balanceOf(beneficiary);
+        assert(balance == 100000_u256, 'Invalid beneficiary balance');
+        let balance = sell_token.balanceOf(beneficiary);
+        assert(balance == 19899_u256, 'Invalid beneficiary balance');
+
+        // Verify avnu's fees: fee in sell token, positive slippage in buy token
+        let balance = sell_token.balanceOf(fees_recipient);
+        assert(balance == 50_u256, 'Invalid avnu sell balance');
+        let balance = buy_token.balanceOf(fees_recipient);
+        assert(balance == 51_u256, 'Invalid avnu buy balance');
+    }
+
+    #[test]
+    #[available_gas(40000000)]
+    fn should_take_avnu_fees_and_integrator_fees_in_sell_token_on_each_iteration() {
+        // Given
+        let (exchange, ownable, fee) = deploy_exchange();
+        let beneficiary = contract_address_const::<0x12345>();
+        let sell_token = deploy_mock_token(beneficiary, 120000, 1);
+        let sell_token_address = sell_token.contract_address;
+        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        let buy_token_address = buy_token.contract_address;
+        let config = TokenFeeConfig { weight: 10 };
+        fee.set_token_fee_config(sell_token_address, config); // now policy should be FeeOnSell
+        set_contract_address(ownable.get_owner());
+        let fees_recipient = contract_address_const::<0x1111>();
+        fee.set_fees_recipient(fees_recipient);
+        fee.set_swap_exact_token_to_fees_bps(5_u128);
+        let sell_token_max_amount = u256 { low: 120000, high: 0 };
+        let sell_token_amount = u256 { low: 80000, high: 0 };
+        let buy_token_amount = u256 { low: 100000, high: 0 };
+        // Smaller swaps get a worse rate, so every retry undershoots and the loop runs its 3 iterations:
+        // 80000 + 21751 + 364 + 485 = 102600 sell token used
+        let mut additional_swap_params = ArrayTrait::new();
+        MockPriceFunction::IncreasingRate(MockIncreasingRatePriceFunction { offset: 500 }).serialize(ref additional_swap_params);
+        let mut routes = ArrayTrait::new();
+        routes
+            .append(
+                Route {
+                    sell_token: sell_token_address,
+                    buy_token: buy_token_address,
+                    swap: RouteSwap::Direct(
+                        DirectSwap {
+                            exchange_address: contract_address_const::<0x12>(),
+                            percent: 100 * ROUTE_PERCENT_FACTOR,
+                            additional_swap_params: additional_swap_params,
+                        },
+                    ),
+                },
+            );
+        set_contract_address(beneficiary);
+        sell_token.approve(exchange.contract_address, sell_token_max_amount);
+        let integrator_fee_recipient = contract_address_const::<'INTEGRATOR'>();
+        let integrator_fee = 100_u128;
+
+        // When
+        let result = exchange
+            .swap_exact_token_to(
+                sell_token_address,
+                sell_token_amount,
+                sell_token_max_amount,
+                buy_token_address,
+                buy_token_amount,
+                beneficiary,
+                integrator_fee,
+                integrator_fee_recipient,
+                routes,
+            );
+
+        // Then
+        assert(result == true, 'invalid result');
+        let (mut keys, mut data) = pop_log_raw(exchange.contract_address).unwrap();
+        let event: Swap = starknet::Event::deserialize(ref keys, ref data).unwrap();
+        let expected_event = Swap {
+            taker_address: beneficiary,
+            sell_address: sell_token_address,
+            sell_amount: 102600,
+            buy_address: buy_token_address,
+            buy_amount: buy_token_amount,
+            beneficiary: beneficiary,
+        };
+        assert(event == expected_event, 'invalid swap event');
+        assert(pop_log_raw(exchange.contract_address).is_none(), 'no more events');
+
+        // Verify that beneficiary receives exactly buy_token_amount
+        let balance = buy_token.balanceOf(beneficiary);
+        assert(balance == 100000_u256, 'Invalid beneficiary balance');
+        let balance = sell_token.balanceOf(beneficiary);
+        assert(balance == 17400_u256, 'Invalid beneficiary balance');
+
+        // Verify integrator's fees, collected on each sell token transfer: 800 + 217 + 3 + 4
+        let balance = sell_token.balanceOf(integrator_fee_recipient);
+        assert(balance == 1024_u256, 'Invalid integrator balance');
+        let balance = buy_token.balanceOf(integrator_fee_recipient);
+        assert(balance == 0_u256, 'Invalid integrator balance');
+
+        // Verify avnu's fees, collected on each sell token transfer: 40 + 10 + 0 + 0 (rounded down on small transfers)
+        // and positive slippage in buy token
+        let balance = sell_token.balanceOf(fees_recipient);
+        assert(balance == 50_u256, 'Invalid avnu sell balance');
+        let balance = buy_token.balanceOf(fees_recipient);
+        assert(balance == 84_u256, 'Invalid avnu buy balance');
+
+        // Verify that no token remains in the exchange
+        assert(sell_token.balanceOf(exchange.contract_address) == 0_u256, 'Residual sell token');
+        assert(buy_token.balanceOf(exchange.contract_address) == 0_u256, 'Residual buy token');
+    }
+
+    #[test]
+    #[available_gas(40000000)]
+    fn should_send_tokens_already_held_by_exchange_to_fees_recipient() {
+        // Given
+        let (exchange, ownable, fee) = deploy_exchange();
+        let beneficiary = contract_address_const::<0x12345>();
+        let sell_token = deploy_mock_token(beneficiary, 150000, 1);
+        let sell_token_address = sell_token.contract_address;
+        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        let buy_token_address = buy_token.contract_address;
+        let config = TokenFeeConfig { weight: 10 };
+        fee.set_token_fee_config(sell_token_address, config); // now policy should be FeeOnSell
+        set_contract_address(ownable.get_owner());
+        let fees_recipient = contract_address_const::<0x1111>();
+        fee.set_fees_recipient(fees_recipient);
+        fee.set_swap_exact_token_to_fees_bps(5_u128);
+        let sell_token_max_amount = u256 { low: 100000, high: 0 };
+        let sell_token_amount = u256 { low: 100000, high: 0 };
+        let buy_token_amount = u256 { low: 99000, high: 0 };
+        let mut routes = ArrayTrait::new();
+        routes
+            .append(
+                Route {
+                    sell_token: sell_token_address,
+                    buy_token: buy_token_address,
+                    swap: RouteSwap::Direct(
+                        DirectSwap {
+                            exchange_address: contract_address_const::<0x12>(),
+                            percent: 100 * ROUTE_PERCENT_FACTOR,
+                            additional_swap_params: ArrayTrait::new(),
+                        },
+                    ),
+                },
+            );
+        set_contract_address(beneficiary);
+        // Tokens sent to the exchange before the swap would otherwise be swapped without fees
+        sell_token.transfer(exchange.contract_address, 50000);
+        sell_token.approve(exchange.contract_address, sell_token_max_amount);
+
+        // When
+        let result = exchange
+            .swap_exact_token_to(
+                sell_token_address,
+                sell_token_amount,
+                sell_token_max_amount,
+                buy_token_address,
+                buy_token_amount,
+                beneficiary,
+                0,
+                contract_address_const::<0x0>(),
+                routes,
+            );
+
+        // Then
+        assert(result == true, 'invalid result');
+
+        // Verify that beneficiary receives exactly buy_token_amount
+        let balance = buy_token.balanceOf(beneficiary);
+        assert(balance == 99000_u256, 'Invalid beneficiary balance');
+
+        // Verify that tokens already held by the exchange go to the fees recipient, on top of avnu's fees (50)
+        // and positive slippage (99950 - 99000)
+        let balance = sell_token.balanceOf(fees_recipient);
+        assert(balance == 50050_u256, 'Invalid avnu sell balance');
+        let balance = buy_token.balanceOf(fees_recipient);
+        assert(balance == 950_u256, 'Invalid avnu buy balance');
+
+        // Verify that no token remains in the exchange
+        assert(sell_token.balanceOf(exchange.contract_address) == 0_u256, 'Residual sell token');
+        assert(buy_token.balanceOf(exchange.contract_address) == 0_u256, 'Residual buy token');
+    }
+
+    #[test]
+    #[available_gas(20000000)]
+    fn should_not_take_avnu_fees_when_integrator_is_whitelisted() {
+        // Given
+        let (exchange, ownable, fee) = deploy_exchange();
+        let beneficiary = contract_address_const::<0x12345>();
+        let sell_token = deploy_mock_token(beneficiary, 120000, 1);
+        let sell_token_address = sell_token.contract_address;
+        let buy_token = deploy_mock_token(beneficiary, 0, 2);
+        let buy_token_address = buy_token.contract_address;
+        set_contract_address(ownable.get_owner());
+        let fees_recipient = contract_address_const::<0x1111>();
+        fee.set_fees_recipient(fees_recipient);
+        fee.set_swap_exact_token_to_fees_bps(5_u128);
+        fee.set_whitelisted_integrator(contract_address_const::<'INTEGRATOR'>(), true);
+        let sell_token_max_amount = u256 { low: 120000, high: 0 };
+        let sell_token_amount = u256 { low: 80000, high: 0 };
+        let buy_token_amount = u256 { low: 100000, high: 0 };
+        let mut routes = ArrayTrait::new();
+        routes
+            .append(
+                Route {
+                    sell_token: sell_token_address,
+                    buy_token: buy_token_address,
+                    swap: RouteSwap::Direct(
+                        DirectSwap {
+                            exchange_address: contract_address_const::<0x12>(),
+                            percent: 100 * ROUTE_PERCENT_FACTOR,
+                            additional_swap_params: ArrayTrait::new(),
+                        },
+                    ),
+                },
+            );
+        set_contract_address(beneficiary);
+        sell_token.approve(exchange.contract_address, sell_token_max_amount);
+        let integrator_fee_recipient = contract_address_const::<'INTEGRATOR'>();
+        let integrator_fee = 100_u128;
+
+        // When
+        let result = exchange
+            .swap_exact_token_to(
+                sell_token_address,
+                sell_token_amount,
+                sell_token_max_amount,
+                buy_token_address,
+                buy_token_amount,
+                beneficiary,
+                integrator_fee,
+                integrator_fee_recipient,
+                routes,
+            );
+
+        // Then
+        assert(result == true, 'invalid result');
+        let (mut keys, mut data) = pop_log_raw(exchange.contract_address).unwrap();
+        let event: Swap = starknet::Event::deserialize(ref keys, ref data).unwrap();
+        let expected_event = Swap {
+            taker_address: beneficiary,
+            sell_address: sell_token_address,
+            sell_amount: 101061,
+            buy_address: buy_token_address,
+            buy_amount: buy_token_amount,
+            beneficiary: beneficiary,
+        };
+        assert(event == expected_event, 'invalid swap event');
+        assert(pop_log_raw(exchange.contract_address).is_none(), 'no more events');
+
+        // Verify that beneficiary receives tokens to
+        let balance = buy_token.balanceOf(beneficiary);
+        assert(balance == 100000_u256, 'Invalid beneficiary balance');
+        let balance = sell_token.balanceOf(beneficiary);
+        assert(balance == 18939_u256, 'Invalid beneficiary balance');
+
+        // Verify that integrator balance
+        let balance = buy_token.balanceOf(integrator_fee_recipient);
+        assert(balance == 1010_u256, 'Invalid integrator balance');
+        let balance = sell_token.balanceOf(integrator_fee_recipient);
+        assert(balance == 0_u256, 'Invalid integrator balance');
+
+        // Verify avnu's fees: only the positive slippage
+        let balance = sell_token.balanceOf(fees_recipient);
+        assert(balance == 0_u256, 'Invalid avnu sell balance');
+        let balance = buy_token.balanceOf(fees_recipient);
+        assert(balance == 51_u256, 'Invalid avnu buy balance');
     }
 
     #[test]
@@ -1904,7 +2708,7 @@ mod SwapExactTokenTo {
         let expected_event = Swap {
             taker_address: beneficiary,
             sell_address: sell_token_address,
-            sell_amount: 101000,
+            sell_amount: 101011,
             buy_address: buy_token_address,
             buy_amount: buy_token_amount,
             beneficiary: beneficiary,
@@ -1916,11 +2720,11 @@ mod SwapExactTokenTo {
         let balance = buy_token.balanceOf(beneficiary);
         assert(balance == 100000_u256, 'Invalid beneficiary balance');
         let balance = sell_token.balanceOf(beneficiary);
-        assert(balance == 19000_u256, 'Invalid beneficiary balance');
+        assert(balance == 18989_u256, 'Invalid beneficiary balance');
 
         // Verify that integrator balance
         let balance = buy_token.balanceOf(integrator_fee_recipient);
-        assert(balance == 1000_u256, 'Invalid integrator buy balance');
+        assert(balance == 1010_u256, 'Invalid integrator buy balance');
         let balance = sell_token.balanceOf(integrator_fee_recipient);
         assert(balance == 0_u256, 'Invalid integrator sell balance');
     }
